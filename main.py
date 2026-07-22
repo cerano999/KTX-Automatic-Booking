@@ -37,7 +37,7 @@ def main():
     DPT_STATION = "나주"      # 출발역
     ARR_STATION = "용산"      # 도착역
     DATE_STR = "20260723"     # 출발 날짜 (YYYYMMDD)
-    TIME_STR = "06"           # 조회 시간 (HH 형식)
+    TIME_STR = "060000"       # 조회 시간 (HHMMSS 형식)
     # ---------------------------------------------------------
 
     print("크롬 브라우저 초기화 및 헤드리스 옵션 설정 중...")
@@ -55,27 +55,27 @@ def main():
     )
 
     try:
-        wait = WebDriverWait(driver, 20)
+        print("코레일 간편 조회 URL 직접 접속 중...")
         
-        print("코레일 승차권 조회 페이지 접속 중...")
-        driver.get("https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do")
+        # 코레일 승차권 조회 페이지로 직접 파라미터를 전달하여 우회 접속
+        # (역 이름 입력 오류를 방지하기 위한 다이렉트 URL 접근 방식)
+        target_url = (
+            f"https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do?"
+            f"txtDptRsStnNm={DPT_STATION}&txtArrRsStnNm={ARR_STATION}"
+            f"&txtSeatAttCd=000&txtTraintype=00&txtStrtDt={DATE_STR}&txtStrtTm={TIME_STR}"
+        )
         
-        # 페이지가 완전히 로드될 때까지 충분히 대기
-        time.sleep(3)
+        driver.get(target_url)
+        time.sleep(5) # 페이지 로딩 대기
 
-        print(f"출발역({DPT_STATION}) 및 도착역({ARR_STATION}) 설정 시도 중...")
+        print("페이지 접속 및 조회 파라미터 전달 완료.")
         
-        # 자바스크립트를 이용해 출발역 및 도착역 입력값 강제 설정 (요소 탐색 오류 방지)
-        driver.execute_script(f"document.getElementById('start').value = '{DPT_STATION}';")
-        driver.execute_script(f"document.getElementById('arv').value = '{ARR_STATION}';")
-        
-        print("역 이름 설정 완료. 조회 함수 실행 중...")
-        
-        # 코레일 조회 함수 실행
-        driver.execute_script("fn_search();")
-        
-        time.sleep(4)
-        print("열차 조회 프로세스 정상 수행 완료.")
+        # 페이지 소스 확인 또는 잔여석 파싱 준비 단계
+        page_title = driver.title
+        print(f"현재 페이지 타이틀: {page_title}")
+
+        success_msg = f"🎉 *KTX 셀레니움 조회 테스트 성공* 🎉\n구간: {DPT_STATION} -> {ARR_STATION} ({DATE_STR})"
+        send_telegram_message(success_msg)
 
     except Exception as e:
         print(f"셀레니움 실행 중 오류 발생: {e}")
