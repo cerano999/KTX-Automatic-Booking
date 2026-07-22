@@ -40,7 +40,7 @@ def main():
     TIME_STR = "06"           # 조회 시간 (HH 형식, 예: 06시 이후)
     # ---------------------------------------------------------
 
-    print("크롬 브라우저 초기화 및 옵션 설정 중...")
+    print("크롬 브라우저 초기화 및 헤드리스 옵션 설정 중...")
     chrome_options = Options()
     chrome_options.add_argument("--headless")  # 화면 없이 백그라운드 실행
     chrome_options.add_argument("--no-sandbox")
@@ -57,29 +57,36 @@ def main():
     try:
         wait = WebDriverWait(driver, 15)
         
-        print("코레일 로그인 페이지 접속 중...")
-        driver.get("https://www.letskorail.com/korail/ivb/ivb.do")
-        
-        # 로그인 탭 또는 입력 필드가 나타날 때까지 대기 후 아이디/비밀번호 입력
-        # (코레일 웹 표준 로그인 폼 구조 반영)
-        print("로그인 정보 입력 중...")
-        
-        # 아이디 입력 필드 찾기 및 입력 (실제 웹 구조의 id/name 기준)
-        # ※ 코레일 웹 화면 구조에 따라 셀렉터가 조정될 수 있습니다.
-        time.sleep(2)
-        
-        # 예매 및 조회 페이지로 직접 접근하여 세션 로그인 수행
+        print("코레일 승차권 예조회 페이지 접속 중...")
+        # 로그인이 풀려있거나 세션이 필요할 때를 대비해 예매 페이지 직접 접속
         driver.get("https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do")
-        
-        print(f"[{DPT_STATION} -> {ARR_STATION} / 날짜: {DATE_STR}] 조건 설정 및 조회 시도...")
-        
-        # 출발역, 도착역 입력 필드 제어 로직
-        # (웹 브라우저 상에서 역 이름을 입력하고 조회 버튼을 누르는 프로세스)
-        
-        # 임시 대기 (웹페이지 로딩 대기)
-        time.sleep(3)
-        print("조회 화면 접근 완료. 세부 매핑 진행 중입니다.")
+        time.sleep(2)
 
+        # 출발역 입력란 찾기 및 값 입력
+        print(f"출발역({DPT_STATION}) 및 도착역({ARR_STATION}) 설정 중...")
+        
+        # 코레일 웹페이지의 출발역 입력 상자 (ID 또는 Name 셀렉터 활용)
+        dpt_input = wait.until(EC.presence_of_element_located((By.NAME, "txtDptRsStnCd")))
+        dpt_input.clear()
+        dpt_input.send_keys(DPT_STATION)
+
+        # 도착역 입력 상자
+        arr_input = wait.until(EC.presence_of_element_located((By.NAME, "txtArrRsStnCd")))
+        arr_input.clear()
+        arr_input.send_keys(ARR_STATION)
+
+        # 조회하기 버튼 클릭 (또는 조회 함수 호출)
+        # 렛츠코레일 웹 표준 조회 버튼 실행
+        print("열차 조회 버튼 실행 중...")
+        driver.execute_script("fn_search();") # 코레일 웹사이트 내부 조회 자바스크립트 함수 호출
+        
+        time.sleep(3)
+        print("열차 조회 결과 페이지 진입 완료.")
+
+        # 향후 잔여석 테이블을 파싱하여 예매 버튼을 누르는 로직 구현 단계로 이어집니다.
+        success_msg = "🎉 *KTX 셀레니움 매크로 실행 중* 🎉\n조건에 맞는 열차 조회를 시도했습니다."
+        # 필요시 텔레그램 테스트 전송 가능
+        
     except Exception as e:
         print(f"셀레니움 실행 중 오류 발생: {e}")
     finally:
