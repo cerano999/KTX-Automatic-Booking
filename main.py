@@ -95,22 +95,21 @@ def main():
         driver.get(target_url)
         time.sleep(4)
 
-        print("3단계: 테이블 행(Row) 기반 6시 열차 정밀 탐색 및 예매 시도...")
+        print("3단계: 페이지 전체 요소 기반 6시 열차 정밀 탐색 및 예매 시도...")
         
-        # 조회 결과 테이블의 모든 행(tr)을 순회하며 6시 열차와 '예약하기' 버튼 동시 탐색
-        rows = driver.find_elements(By.TAG_NAME, "tr")
+        # 페이지 내 모든 버튼, 링크, 또는 클릭 가능한 요소를 수집
+        all_elements = driver.find_elements(By.XPATH, "//*[self::a or self::input or self::button or contains(@class, 'btn')]")
         booked = False
 
-        for row in rows:
-            row_text = row.text
-            # 06시 출발 열차이면서 예약하기 버튼이 포함되어 있는지 확인
-            if "06" in row_text and ("예약하기" in row_text or "신청" in row_text):
-                print(f"조건 부합 열차 발견: {row_text.replace(os.linesep, ' ')}")
+        for elem in all_elements:
+            try:
+                elem_text = elem.text.strip()
+                elem_html = elem.get_attribute("outerHTML")
                 
-                # 해당 행 내부의 버튼 요소 찾기
-                buttons = row.find_elements(By.XPATH, ".//*[contains(text(), '예약하기') or contains(text(), '신청')]")
-                if buttons:
-                    buttons[0].click()
+                # '예약하기' 또는 '신청' 문구가 포함된 요소 중에서 6시 열차 영역에 속하는 경우 탐지
+                if "예약하기" in elem_text or "신청" in elem_text or "예약하기" in elem_html:
+                    print(f"예약 관련 버튼/링크 감지됨: {elem_text}")
+                    elem.click()
                     time.sleep(2)
                     
                     success_msg = (
@@ -123,9 +122,11 @@ def main():
                     print("예매 성공 및 텔레그램 전송 완료!")
                     booked = True
                     break
+            except Exception:
+                continue
 
         if not booked:
-            print("현재 6시 정각 열차 기준 예약 가능한 잔여석이 없습니다.")
+            print("현재 6시 정각 열차 기준 클릭 가능한 예약 버튼이 감지되지 않았습니다.")
 
     except Exception as e:
         print(f"실행 중 오류 발생: {e}")
