@@ -37,10 +37,11 @@ def main():
     DPT_STATION = "나주"          # 출발역
     ARR_STATION = "용산"          # 도착역
     DATE_STR = "20260723"         # 출발 날짜 (YYYYMMDD)
-    BASE_TIME_STR = "060000"      # 기준 조회 시간 (HHMMSS, 06시)
     
-    # [설정] 조회 시간 기준 허용 범위 (단위: 시간) -> 2로 설정 시 06시~08시 범위 탐색
-    TIME_RANGE_HOURS = 2          
+    # [요청 반영] 정확히 06시부터 08시 사이 표를 검색하기 위한 설정
+    START_HOUR = 6                # 검색 시작 시간 (06시)
+    END_HOUR = 8                  # 검색 종료 시간 (08시)
+    BASE_TIME_STR = "060000"      # 조회 URL에 들어갈 기준 시간
     
     # 좌석 선택 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
     SEAT_PREFERENCE = "ALL"   
@@ -92,7 +93,7 @@ def main():
         except Exception as login_err:
             print(f"로그인 폼 직접 입력 건너뜀: {login_err}")
 
-        print(f"2단계: 기준 시간({BASE_TIME_STR}) 기준 전후 {TIME_RANGE_HOURS}시간(6시~8시) 범위 내 열차 정밀 탐색 시작...")
+        print(f"2단계: {START_HOUR}시부터 {END_HOUR}시 사이 열차 정밀 탐색 시작...")
         seat_code = "000"
         if SEAT_PREFERENCE == "GENERAL":
             seat_code = "011"
@@ -105,10 +106,6 @@ def main():
             f"&txtSeatAttCd={seat_code}&txtTraintype=00&txtStrtDt={DATE_STR}&txtStrtTm={BASE_TIME_STR}"
         )
         
-        base_hour = int(BASE_TIME_STR[:2])
-        min_hour = max(0, base_hour - TIME_RANGE_HOURS) # 06시
-        max_hour = min(23, base_hour + TIME_RANGE_HOURS) # 08시
-
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
@@ -123,20 +120,21 @@ def main():
                 try:
                     row_text = row.text
                     if ":" in row_text:
-                        for h in range(min_hour, max_hour + 1):
+                        # 6시부터 8시 사이의 시간 문자열(06:, 07:)이 포함된 행인지 확인
+                        for h in range(START_HOUR, END_HOUR):
                             target_hour_str = f"{h:02d}:"
                             if target_hour_str in row_text:
                                 if "예약하기" in row_text or "신청" in row_text:
-                                    print(f"🎯 6시~8시 시간대 내 예매 가능한 열차 포착!")
+                                    print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능한 열차 포착!")
                                     
                                     action_btn = row.find_element(By.XPATH, ".//*[contains(text(), '예약하기') or contains(text(), '신청')]")
                                     action_btn.click()
                                     time.sleep(3)
 
                                     success_msg = (
-                                        f"🎉 *KTX 6~8시 시간대 예매 성공!* 🎉\n\n"
+                                        f"🎉 *KTX {START_HOUR}~{END_HOUR}시 시간대 예매 성공!* 🎉\n\n"
                                         f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                                        f"일시: {DATE_STR} (06:00 ~ 08:00 범위)\n"
+                                        f"일시: {DATE_STR} ({START_HOUR}:00 ~ {END_HOUR}:00)\n"
                                         f"코레일 앱에서 예매 내역을 확인해 주세요!"
                                     )
                                     send_telegram_message(success_msg)
