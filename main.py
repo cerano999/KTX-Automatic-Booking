@@ -1,82 +1,92 @@
 import os
 import time
+from korail2 import Korail, TrainType
 import requests
-from korail2 import Korail
 
-def run_ktx_macro():
-    # GitHub Secrets에 등록된 환경 변수 불러오기
-    ktx_id = os.environ.get("KID")
-    ktx_pw = os.environ.get("KPW")
-    tg_token = os.environ.get("TG_TOKEN")
-    tg_chat_id = os.environ.get("TG_CHAT_ID")
-    
+# 환경 변수에서 코레일 계정 및 텔레그램 정보 불러오기
+KID = os.getenv("KID")
+KPW = os.getenv("KPW")
+TG_TOKEN = os.getenv("TG_TOKEN")
+TG_CHAT_ID = os.getenv("TG_CHAT_ID")
+
+def send_telegram_message(message):
+    """텔레그램으로 예매 성공 및 알림 메시지를 전송하는 함수"""
+    if not TG_TOKEN or not TG_CHAT_ID:
+        return
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TG_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
     try:
-        print("🚀 KTX 자동 예매 스크립트 실행 시작...")
-        korail = Korail(ktx_id, ktx_pw)
+        requests.post(url, json=payload)
+    except Exception as e:
+        print(f"텔레그램 전송 실패: {e}")
+
+def main():
+    try:
+        # 코레일 객체 생성 및 로그인
+        korail = Korail(KID, KPW)
         
-        # 💡 [여정 및 시간 범위 설정 구간]
-        dep = "나주"
-        arr = "용산"
-        date = "20260723"          # 예매 날짜 (YYYYMMDD)
-        start_time = "080000"     # 탐색 시작 시간 (HHMMSS 형식, 오전 8시)
-        range_hours = 3           # ⏰ 8시부터 몇 시간 동안 탐색할 것인지 지정 (예: 3시간 = 8시, 9시, 10시 대 열차 모두 조회)
+        # ---------------------------------------------------------
+        # [사용자 설정 변수] 예매 조건 수정 영역
+        # ---------------------------------------------------------
+        dpt_rs = "나주"      # 출발역
+        arr_rs = "용산"      # 도착역
+        date_str = "20260723" # 출발 날짜 (YYYYMMDD)
+        time_str = "060000"  # 조회 시작 시간을 넉넉하게 오전 6시로 변경 (원하시는 시간으로 수정 가능)
         
-        # 기준 시간을 분(Minute) 단위로 변환
-        base_hour = int(start_time[:2])
-        base_minute = int(start_time[2:4])
-        base_total_min = base_hour * 60 + base_minute
-        
-        target_trains = []
-        
-        # 지정한 시간 범위(시간 단위)만큼 순차적으로 열차 조회
-        for h in range(range_hours):
-            current_total_min = base_total_min + (h * 60)
-            cur_h = current_total_min // 60
-            cur_m = current_total_min % 60
-            
-            # HHMMSS 형식으로 시간 문자열 생성 (예: 080000, 090000, 100000)
-            time_slot = f"{cur_h:02d}{cur_m:02d}00"
-            
-            print(f"🔍 [{dep} → {arr}] {date} {time_slot[:4]}경 기준 열차 조회 중...")
-            try:
-                trains = korail.search_train(dep, arr, date, time_slot)
-                if trains:
-                    target_trains.extend(trains)
-            except Exception as e:
-                print(f"⚠️ {time_slot[:4]} 시간대 조회 중 오류 발생: {e}")
-            
-            # 서버 부하 방지를 위한 짧은 대기
-            time.sleep(1)
-        
-        if not target_trains:
-            print("⏳ 조건에 맞는 열차가 없습니다.")
+        # 좌석 옵션 설정: TrainType.ALL (아래 ALL 대신에 GENERAL->일반실, SPECIAL->특실 예약 가능)
+        seat_preference = TrainType.ALL 
+        # ---------------------------------------------------------
+
+        print(f"[{dpt_rs} -> {arr_rs} / {date_str} / {time_str} 이후] 열차 조회 시작...")
+
+        # 열차 검색
+        trains = korail.search_train(
+            dpt_rs, 
+            arr_rs, 
+            date_str, 
+            time_str, 
+            train_type=seat_preference
+        )
+
+        if not trains:
+            print("조회된 열차가 없습니다. 조건(역 이름, 날짜)을 다시 확인해 주세요.")
             return
 
-        print(f"📋 총 {len(target_trains)}개의 열차를 확인했습니다. 잔여석 검사 중...")
-        
-        # 중복 열차 제거 및 시간순 정렬 (필요시)
-        # 조회된 열차들을 순회하며 잔여석 확인
-        for train in target_trains:
-            if train.general_seat_available():
-                print(f"🎉 [{train.dep_time} 출발] 잔여석 발견! 예매 시도 중...")
-                seat = korail.reserve(train)
-                print(f"✅ 예매 성공: {seat}")
+        # 조회된 모든 열차의 상태를 로그에 출력하여 디버깅 (앱과 비교용)
+        for train in trains:
+            print(f"열차번호: {train.train_no} | 출발: {train.dpt_time} | 일반실: [{train.general_seat_state.strip()}] | 특실: [{train.special_seat_state.strip()}]")
+
+            # 좌석 상태 문자열에 '예약가능'이 포함되어 있는지 유연하게 체크
+            gen_status = train.general_seat_state if train.general_seat_state else ""
+            spc_status = train.special_seat_state if train.special_seat_state else ""
+
+            if "예약가능" in gen_status or "예약가능" in spc_status:
+                print(f"잔여석 발견! 예매 시도 중: 열차 {train.train_no}")
+                
+                # 예매 실행
+                ticket = korail.reserve(train)
+                
+                success_msg = (
+                    f"🎉 *KTX 예매 성공!* 🎉\n\n"
+                    f"구간: {train.dpt_station} -> {train.arr_station}\n"
+                    f"일시: {train.dpt_date} {train.dpt_time}\n"
+                    f"열차번호: {train.train_no}\n"
+                    f"지금 코레일 앱을 확인해 주세요!"
+                )
                 
                 # 텔레그램 알림 전송
-                msg = (
-                    f"🎉 [KTX] 예매 성공!\n"
-                    f"▶ {dep} → {arr}\n"
-                    f"▶ {date[:4]}-{date[4:6]}-{date[6:]} {train.dep_time} 출발\n"
-                    f"⚠️ 10분 내로 코레일 앱에서 결제하세요!"
-                )
-                url = f"https://api.telegram.org/bot{tg_token}/sendMessage"
-                requests.post(url, data={"chat_id": tg_chat_id, "text": msg})
-                break
-        else:
-            print("⏳ 탐색 범위 내에 잔여석이 있는 열차가 없습니다.")
-                
+                send_telegram_message(success_msg)
+                print("예매 성공 및 텔레그램 전송 완료!")
+                return
+
+        print("조건에 맞는 열차 중 예약 가능한 잔여석이 아직 없습니다.")
+
     except Exception as e:
-        print(f"❌ 오류 발생: {e}")
+        print(f"오류 발생: {e}")
 
 if __name__ == "__main__":
-    run_ktx_macro()
+    main()
