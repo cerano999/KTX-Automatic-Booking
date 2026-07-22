@@ -1,13 +1,14 @@
 name: KTX Auto Macro (Selenium)
 
 on:
-  workflow_dispatch:
-  repository_dispatch:
-    types: [run-ktx]
+  schedule:
+    - cron: '*/1 * * * *'  # 1분마다 실행 (필요에 따라 조정)
+  workflow_dispatch:     # 수동 실행 지원
 
 jobs:
   run-macro:
     runs-on: ubuntu-latest
+
     steps:
       - name: 소스코드 체크아웃
         uses: actions/checkout@v3
@@ -17,14 +18,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 크롬 브라우저 및 드라이버 설치
-        uses: browser-actions/setup-chrome@latest
-        with:
-          chrome-version: stable
-
       - name: 필수 라이브러리 설치
         run: |
-          pip install selenium webdriver-manager requests
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: 매크로 실행
         env:
