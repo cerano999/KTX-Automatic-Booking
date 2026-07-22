@@ -95,32 +95,29 @@ def main():
         driver.get(target_url)
         time.sleep(3)
 
-        print("3단계: 6시 열차 잔여석 정밀 분석 및 예매 시도...")
+        print("3단계: 6시 열차 잔여석 정밀 대기 및 예매 시도...")
         
-        # 페이지 소스 내에서 6시 열차 주변의 '예약하기' 버튼을 보다 정확하게 탐색
-        page_text = driver.page_source
-        
-        if "예약하기" in page_text:
-            print("예약 가능한 버튼 감지됨!")
-            reservation_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+        # 명시적 대기를 통해 '예약하기' 버튼이 DOM에 나타날 때까지 최대 5초 대기
+        try:
+            reservation_button = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]"))
+            )
             
-            if reservation_buttons:
-                print("즉시 예매 버튼 클릭 시도!")
-                reservation_buttons[0].click()
-                time.sleep(2)
+            print("예약 가능한 버튼 발견! 즉시 클릭 시도!")
+            reservation_button.click()
+            time.sleep(2)
 
-                success_msg = (
-                    f"🎉 *KTX 6시 열차 예매 성공!* 🎉\n\n"
-                    f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                    f"일시: {DATE_STR} 06:00\n"
-                    f"지금 코레일 앱을 확인해 주세요!"
-                )
-                send_telegram_message(success_msg)
-                print("예매 성공 및 텔레그램 전송 완료!")
-            else:
-                print("예약 텍스트가 있으나 클릭 요소를 찾지 못했습니다.")
-        else:
-            print("현재 6시 정각 열차 기준 예약 가능한 잔여석이 없습니다.")
+            success_msg = (
+                f"🎉 *KTX 6시 정각 열차 예매 성공!* 🎉\n\n"
+                f"구간: {DPT_STATION} -> {ARR_STATION}\n"
+                f"일시: {DATE_STR} 06:00\n"
+                f"코레일 앱에서 예매 내역을 확인해 주세요!"
+            )
+            send_telegram_message(success_msg)
+            print("예매 성공 및 텔레그램 전송 완료!")
+
+        except Exception:
+            print("현재 6시 정각 열차 기준 클릭 가능한 예약 버튼이 감지되지 않았습니다.")
 
     except Exception as e:
         print(f"실행 중 오류 발생: {e}")
