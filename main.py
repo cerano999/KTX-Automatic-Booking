@@ -39,14 +39,14 @@ def main():
     DATE_STR = "20260723"         # 출발 날짜 (YYYYMMDD)
     BASE_TIME_STR = "060000"      # 기준 조회 시간 (HHMMSS, 예: 06시)
     
-    # [요청 반영] 조회 시간 기준 허용 범위 (단위: 시간). 이 시간 내의 표를 모두 탐색합니다.
+    # [사용자 설정] 조회 시간 기준 허용 범위 (단위: 시간) - 이 범위 내의 표를 예매합니다.
     TIME_RANGE_HOURS = 2          
     
     # 좌석 선택 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
     SEAT_PREFERENCE = "ALL"   
     
-    # 반복 조회 횟수 설정
-    MAX_RETRIES = 15
+    # 반복 조회 횟수 및 딜레이 설정
+    MAX_RETRIES = 20
     RETRY_DELAY = 2
     # ---------------------------------------------------------
 
@@ -92,7 +92,7 @@ def main():
         except Exception as login_err:
             print(f"로그인 폼 직접 입력 건너뜀: {login_err}")
 
-        print(f"2단계: 기준 시간({BASE_TIME_STR}) 기준 전후 {TIME_RANGE_HOURS}시간 범위 내 열차 조회 페이지 접속 및 감시 시작...")
+        print(f"2단계: 기준 시간({BASE_TIME_STR}) 기준 전후 {TIME_RANGE_HOURS}시간 범위 내 열차 정밀 탐색 시작...")
         seat_code = "000"
         if SEAT_PREFERENCE == "GENERAL":
             seat_code = "011"
@@ -105,31 +105,54 @@ def main():
             f"&txtSeatAttCd={seat_code}&txtTraintype=00&txtStrtDt={DATE_STR}&txtStrtTm={BASE_TIME_STR}"
         )
         
+        base_hour = int(BASE_TIME_STR[:2])
+        min_hour = max(0, base_hour - TIME_RANGE_HOURS)
+        max_hour = min(23, base_hour + TIME_RANGE_HOURS)
+
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] {TIME_RANGE_HOURS}시간 내 열차 잔여석 실시간 탐색 중...")
+            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 및 잔여석 파싱 중...")
             driver.get(target_url)
-            time.sleep(3)
+            time.sleep(4) # 동적 테이블 렌더링 충분히 대기
 
-            # 페이지 내 모든 예약 가능 버튼 혹은 열차 리스트 요소를 탐색
-            reservation_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+            # 코레일 결과 페이지의 열차 행(Row) 요소들 가져오기
+            train_rows = driver.find_elements(By.TAG_NAME, "tr")
             
-            if reservation_buttons:
-                print(f"총 {len(reservation_buttons)}개의 예매 가능 버튼 발견! 첫 번째 가용한 좌석 즉시 클릭!")
-                reservation_buttons[0].click()
-                time.sleep(3)
+            found_target = False
+            for row in train_rows:
+                row_text = row.text
+                # 시간 형태(예: 06:xx 또는 07:xx 등)가 포함된 행 필터링
+                if ":" in row_text:
+                    for h in range(min_hour, max_hour + 1):
+                        hour_str = f"{h:02d}:"
+                        if hour_str in row_text:
+                            # 해당 시간에 예매 가능한 버튼이 있는지 확인
+                            if "예약하기" in row_text or "신청" in row_text:
+                                print(f"🎯 허용 시간대({min_hour}시~{max_hour}시) 내 예매 가능 열차 발견!")
+                                # 해당 행 내부의 예약 버튼 클릭
+                                try:
+                                    btn = row.find_element(By.XPATH, ".//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+                                    btn.click()
+                                    time.sleep(3)
+                                    
+                                    success_msg = (
+                                        f"🎉 *KTX 맞춤 시간대 예매 성공!* 🎉\n\n"
+                                        f"구간: {DPT_STATION} -> {ARR_STATION}\n"
+                                        f"일시: {DATE_STR} (기준 {BASE_TIME_STR[:2]}시 ± {TIME_RANGE_HOURS}시간)\n"
+                                        f"코레일 앱에서 예매 내역을 확인해 주세요!"
+                                    )
+                                    send_telegram_message(success_msg)
+                                    print("예매 성공 및 텔레그램 전송 완료!")
+                                    booked_success = True
+                                    found_target = True
+                                    break
+                                except Exception as click_err:
+                                    print(f"버튼 클릭 중 예외 발생: {click_err}")
+                    if found_target:
+                        break
 
-                success_msg = (
-                    f"🎉 *KTX 맞춤 시간대 예매 성공!* 🎉\n\n"
-                    f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                    f"일시: {DATE_STR} (기준 {BASE_TIME_STR} ± {TIME_RANGE_HOURS}시간 내)\n"
-                    f"선택 옵션: {SEAT_PREFERENCE}\n"
-                    f"코레일 앱에서 예매 내역을 확인해 주세요!"
-                )
-                send_telegram_message(success_msg)
-                print("예매 성공 및 텔레그램 전송 완료!")
-                booked_success = True
+            if booked_success:
                 break
             else:
                 print(f"조건 범위 내 잔여석 없음. {RETRY_DELAY}초 후 재시도합니다.")
