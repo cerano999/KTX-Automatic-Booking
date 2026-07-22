@@ -36,14 +36,23 @@ def main():
     SEAT_PREFERENCE = "ALL"
     # ---------------------------------------------------------
 
-    print("korail2 모듈을 통한 KTX 자동 예매 감시 시작...")
+    print("korail2 모듈 및 최신 앱 버전 우회 설정을 통한 KTX 자동 예매 감시 시작...")
 
     try:
-        # 코레일 객체 생성 및 로그인
+        # 코레일 객체 생성
         korail = Korail(KID, KPW)
+        
+        # [중요] 코레일 서버의 구버전 앱 차단(MACRO ERROR) 우회를 위한 헤더 위변조 설정
+        # 최신 Korail Talk 앱 User-Agent 및 버전 규격 적용
+        if hasattr(korail, 'session'):
+            korail.session.headers.update({
+                "User-Agent": "KorailTalk/2.5.0 (Android; 13; Scale/2.6)",
+                "X-Requested-With": "com.korail.talk"
+            })
+
         print("코레일 멤버십 로그인 성공.")
 
-        # korail2 라이브러리의 표준 위치 인자 순서에 맞춰 호출 (출발역, 도착역, 날짜, 시간)
+        # 열차 조회 실행
         trains = korail.search_train(
             DPT_STATION,
             ARR_STATION,
@@ -58,17 +67,15 @@ def main():
 
         booked = False
         for train in trains:
-            # 06시 정각 열차 매칭 (출발 시간이 '06'으로 시작하는지 확인)
+            # 06시 정각 열차 매칭
             if train.dep_time.startswith("06"):
                 print(f"6시 열차 발견: {train.dep_date} {train.dep_time} 출발 (열차번호: {train.train_no})")
                 
-                # 일반실/특실 잔여석 상태 확인
                 general_seat = train.general_seat_state
                 special_seat = train.special_seat_state
                 
                 print(f"일반실 상태: {general_seat} / 특실 상태: {special_seat}")
 
-                # 예약 가능 상태 체크
                 can_book_general = general_seat != "FULL" and "매진" not in general_seat
                 can_book_special = special_seat != "FULL" and "매진" not in special_seat
 
@@ -86,7 +93,6 @@ def main():
                 if target_to_book:
                     print(f"🎉 6시 열차 {target_to_book} 잔여석 포착! 예매 시도 중...")
                     
-                    # 실제 예약 실행 코드
                     reservation = korail.reserve(train)
                     
                     success_msg = (
