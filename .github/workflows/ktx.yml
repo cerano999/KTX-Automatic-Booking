@@ -3,7 +3,7 @@ name: KTX Auto Macro
 on:
   workflow_dispatch: # GitHub 웹사이트에서 버튼을 눌러 언제든 수동 실행 가능
   schedule:
-    - cron: '*/1 * * * *' # 10분마다 자동으로 반복 실행
+    - cron: '*/1 * * * *' # 1분마다 자동으로 반복 실행
 
 jobs:
   run-macro:
