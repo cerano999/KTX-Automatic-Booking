@@ -16,9 +16,9 @@ def run_ktx_macro():
         korail = Korail(ktx_id, ktx_pw)
         
         # 예매 조건 설정 (예: 서울 -> 부산, 날짜, 시간)
-        dep = "서울"
-        arr = "부산"
-        date = "20260710"
+        dep = "나주"
+        arr = "용산"
+        date = "20260723"
         time_slot = "080000"
         
         trains = korail.search_train(dep, arr, date, time_slot)
