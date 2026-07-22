@@ -39,14 +39,18 @@ def main():
     DATE_STR = "20260723"     # 출발 날짜 (YYYYMMDD)
     TIME_STR = "060000"       # 조회 시간 (HHMMSS)
     
-    # 좌석 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
-    SEAT_PREFERENCE = "ALL"
+    # 좌석 선택 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
+    SEAT_PREFERENCE = "ALL"   
+    
+    # 반복 조회 횟수 설정 (GitHub Actions 타임아웃 방지를 위한 루프 제한)
+    MAX_RETRIES = 10
+    RETRY_DELAY = 2
     # ---------------------------------------------------------
 
-    print("크롬 브라우저 초기화 및 안티보안 우회 설정 중...")
+    print("크롬 브라우저 초기화 및 안티보안 우회 헤드리스 설정 중...")
     chrome_options = Options()
     
-    # 봇 탐지 우회 및 헤드리스 안정성 옵션
+    # 봇 탐지 우회 및 안정성 강화 옵션
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -62,7 +66,7 @@ def main():
         options=chrome_options
     )
 
-    # 봇 탐지 회피 스크립트 실행
+    # 봇 탐지 회피용 자바스크립트 실행
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
     try:
@@ -87,7 +91,7 @@ def main():
         except Exception as login_err:
             print(f"로그인 폼 직접 입력 건너뜀: {login_err}")
 
-        print("2단계: 6시 정각 열차 조회 페이지 접속 중...")
+        print("2단계: 6시 정각 열차 조회 페이지 접속 및 반복 감시 시작...")
         seat_code = "000"
         if SEAT_PREFERENCE == "GENERAL":
             seat_code = "011"
@@ -100,29 +104,38 @@ def main():
             f"&txtSeatAttCd={seat_code}&txtTraintype=00&txtStrtDt={DATE_STR}&txtStrtTm={TIME_STR}"
         )
         
-        driver.get(target_url)
-        time.sleep(5) # 데이터 렌더링 대기
+        booked_success = False
 
-        print("3단계: 6시 열차 잔여석 정밀 탐색 및 예매 시도...")
-        
-        reservation_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
-        
-        if reservation_buttons:
-            print(f"총 {len(reservation_buttons)}개의 예매 가능 버튼 발견! 즉시 클릭!")
-            reservation_buttons[0].click()
-            time.sleep(3)
+        for attempt in range(1, MAX_RETRIES + 1):
+            print(f"[{attempt}/{MAX_RETRIES}] 6시 열차 잔여석 실시간 탐색 중...")
+            driver.get(target_url)
+            time.sleep(3) # 페이지 렌더링 대기
 
-            success_msg = (
-                f"🎉 *KTX 6시 정각 열차 예매 성공!* 🎉\n\n"
-                f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                f"일시: {DATE_STR} 06:00\n"
-                f"선택 옵션: {SEAT_PREFERENCE}\n"
-                f"코레일 앱에서 예매 내역을 확인해 주세요!"
-            )
-            send_telegram_message(success_msg)
-            print("예매 성공 및 텔레그램 전송 완료!")
-        else:
-            print("현재 6시 정각 열차 기준 예약 가능한 잔여석이 없습니다.")
+            # '예약하기' 또는 '신청' 버튼 탐색
+            reservation_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+            
+            if reservation_buttons:
+                print(f"총 {len(reservation_buttons)}개의 예매 가능 버튼 발견! 즉시 클릭!")
+                reservation_buttons[0].click()
+                time.sleep(3)
+
+                success_msg = (
+                    f"🎉 *KTX 6시 정각 열차 예매 성공!* 🎉\n\n"
+                    f"구간: {DPT_STATION} -> {ARR_STATION}\n"
+                    f"일시: {DATE_STR} 06:00\n"
+                    f"선택 옵션: {SEAT_PREFERENCE}\n"
+                    f"코레일 앱에서 예매 내역을 확인해 주세요!"
+                )
+                send_telegram_message(success_msg)
+                print("예매 성공 및 텔레그램 전송 완료!")
+                booked_success = True
+                break
+            else:
+                print(f"잔여석 없음. {RETRY_DELAY}초 후 재시도합니다.")
+                time.sleep(RETRY_DELAY)
+
+        if not booked_success:
+            print("설정된 최대 재시도 횟수 동안 예약 가능한 잔여석이 발견되지 않았습니다.")
 
     except Exception as e:
         print(f"실행 중 오류 발생: {e}")
