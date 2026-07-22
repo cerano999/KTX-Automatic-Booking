@@ -43,11 +43,10 @@ def main():
         korail = Korail(KID, KPW)
         print("코레일 멤버십 로그인 성공.")
 
-        # 열차 조회 요청
-        # 승차일자는 YYYYMMDD 형식, 시간은 HHMMSS 형식
+        # korail2 라이브러리 규격에 맞는 파라미터(departure, arrival)로 수정
         trains = korail.search_train(
-            dpt=DPT_STATION,
-            arr=ARR_STATION,
+            departure=DPT_STATION,
+            arrival=ARR_STATION,
             date=DATE_STR,
             time=TIME_STR,
             train_type=TrainType.KTX  # KTX 지정
@@ -64,13 +63,12 @@ def main():
                 print(f"6시 열차 발견: {train.dep_date} {train.dep_time} 출발 (열차번호: {train.train_no})")
                 
                 # 일반실/특실 잔여석 상태 확인
-                # korail2 라이브러리는 일반실/특실 예약 가능 여부를 속성으로 제공합니다.
                 general_seat = train.general_seat_state
                 special_seat = train.special_seat_state
                 
                 print(f"일반실 상태: {general_seat} / 특실 상태: {special_seat}")
 
-                # 예약 가능 상태 체크 (보통 'RESERVE' 또는 '예약가능' 관련 상태값 반환)
+                # 예약 가능 상태 체크
                 can_book_general = general_seat != "FULL" and "매진" not in general_seat
                 can_book_special = special_seat != "FULL" and "매진" not in special_seat
 
@@ -88,8 +86,7 @@ def main():
                 if target_to_book:
                     print(f"🎉 6시 열차 {target_to_book} 잔여석 포착! 예매 시도 중...")
                     
-                    # 실제 예약 실행 코드 (reserve 메서드)
-                    # korail.reserve(train)을 통해 즉시 예약을 확정합니다.
+                    # 실제 예약 실행 코드
                     reservation = korail.reserve(train)
                     
                     success_msg = (
