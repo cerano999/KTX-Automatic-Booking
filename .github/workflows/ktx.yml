@@ -1,8 +1,9 @@
-name: KTX Auto Macro
+name: KTX Auto Macro (Selenium)
 
 on:
-  workflow_dispatch: # 수동 실행 버튼 활성화
-  repository_dispatch: # 외부 웹 크론 서비스에서 신호를 받아 실행할 수 있도록 설정
+  workflow_dispatch:
+  repository_dispatch:
+    types: [run-ktx]
 
 jobs:
   run-macro:
@@ -16,9 +17,14 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: 크롬 브라우저 및 드라이버 설치
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+
       - name: 필수 라이브러리 설치
         run: |
-          pip install korail2 requests
+          pip install selenium webdriver-manager requests
 
       - name: 매크로 실행
         env:
