@@ -48,7 +48,7 @@ def main():
     
     SEAT_PREFERENCE = "ALL"       # 좌석 옵션 ("ALL", "GENERAL", "SPECIAL")
     
-    MAX_RETRIES = 35              # 반복 조회 횟수
+    MAX_RETRIES = 40              # 반복 조회 횟수
     RETRY_DELAY = 2               # 재시도 딜레이 (초)
     # ---------------------------------------------------------
 
@@ -116,36 +116,35 @@ def main():
             print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 새로고침 및 6~8시 잔여석 파싱 중...")
             driver.get(target_url)
             
-            # 페이지 내 테이블이나 데이터가 렌더링될 때까지 잠시 대기
+            # 페이지 내 콘텐츠 렌더링 대기
             time.sleep(3.5)
 
             try:
-                # 페이지 내 모든 열차 행(tr) 탐색
-                rows = driver.find_elements(By.TAG_NAME, "tr")
+                # 페이지 내 모든 링크 및 버튼 요소 탐색
+                elements = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
                 
-                for row in rows:
+                for el in elements:
                     try:
+                        row = el.find_element(By.XPATH, "./ancestor::tr")
                         row_text = row.text
-                        # 6시 또는 7시 대 열차인지 확인 (06:, 07:)
+                        
+                        # 6시 또는 7시 열차인지 확인 (06:, 07:)
                         if any(f"{h:02d}:" in row_text for h in range(START_HOUR, END_HOUR)):
-                            # 해당 행에 '예약하기' 또는 '신청' 버튼이 포함되어 있는지 확인
-                            if "예약하기" in row_text or "신청" in row_text:
-                                print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능 좌석 포착! 버튼 클릭 시도!")
-                                
-                                btn = row.find_element(By.XPATH, ".//*[contains(text(), '예약하기') or contains(text(), '신청')]")
-                                btn.click()
-                                time.sleep(3)
+                            print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능 좌석 포착! 버튼 클릭 시도!")
+                            
+                            el.click()
+                            time.sleep(3)
 
-                                success_msg = (
-                                    f"🎉 *KTX {START_HOUR}~{END_HOUR}시 시간대 예매 성공!* 🎉\n\n"
-                                    f"구간: {DPT_STATION_NAME} -> {ARR_STATION_NAME}\n"
-                                    f"일시: {DATE_STR} ({START_HOUR}:00 ~ {END_HOUR}:00)\n"
-                                    f"코레일 앱에서 예매 내역을 확인해 주세요!"
-                                )
-                                send_telegram_message(success_msg)
-                                print("예매 성공 및 텔레그램 전송 완료!")
-                                booked_success = True
-                                break
+                            success_msg = (
+                                f"🎉 *KTX {START_HOUR}~{END_HOUR}시 시간대 예매 성공!* 🎉\n\n"
+                                f"구간: {DPT_STATION_NAME} -> {ARR_STATION_NAME}\n"
+                                f"일시: {DATE_STR} ({START_HOUR}:00 ~ {END_HOUR}:00)\n"
+                                f"코레일 앱에서 예매 내역을 확인해 주세요!"
+                            )
+                            send_telegram_message(success_msg)
+                            print("예매 성공 및 텔레그램 전송 완료!")
+                            booked_success = True
+                            break
                     except Exception:
                         continue
             except Exception as e:
