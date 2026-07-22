@@ -26,16 +26,17 @@ def send_telegram_message(message):
 
 def main():
     try:
-        # 코레일 객체 생성 및 로그인 (최신 앱 버전 대응을 위해 korail2 인스턴스 설정)
+        # 코레일 객체 생성 및 로그인
         korail = Korail(KID, KPW)
         
-        # 코레일 서버의 매크로 차단 우회를 위해 내부 앱 버전/유저 아젠트 강제 지정 (가능한 경우)
-        # korail2 라이브러리가 최신 버전 규격을 따르도록 세션 헤더 조정
+        # 코레일 서버의 매크로 차단 우회를 위한 강화된 세션 헤더 설정
         try:
             korail.session.headers.update({
-                "User-Agent": "KorailTalk/2026 (Android; 14)",
+                "User-Agent": "KorailTalk/2.4.2 (Android; 14; SM-S918N)",
                 "X-Device-OS": "Android",
-                "X-Device-App-Version": "2026.01.0" # 최신 앱 버전 형식 모방
+                "X-Device-App-Version": "2.4.2",
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "ko-KR,ko;q=0.9"
             })
         except Exception:
             pass
@@ -52,7 +53,7 @@ def main():
         seat_preference = TrainType.ALL 
         # ---------------------------------------------------------
 
-        print(f"[{dpt_rs} -> {arr_rs} / {date_str} / {time_str} 이후] 최신 보안 우회 조회 시작...")
+        print(f"[{dpt_rs} -> {arr_rs} / {date_str} / {time_str} 이후] 강화된 우회 조회 시작...")
 
         # 열차 검색
         trains = korail.search_train(
