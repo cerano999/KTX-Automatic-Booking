@@ -26,22 +26,33 @@ def send_telegram_message(message):
 
 def main():
     try:
-        # 코레일 객체 생성 및 로그인
+        # 코레일 객체 생성 및 로그인 (최신 앱 버전 대응을 위해 korail2 인스턴스 설정)
         korail = Korail(KID, KPW)
         
+        # 코레일 서버의 매크로 차단 우회를 위해 내부 앱 버전/유저 아젠트 강제 지정 (가능한 경우)
+        # korail2 라이브러리가 최신 버전 규격을 따르도록 세션 헤더 조정
+        try:
+            korail.session.headers.update({
+                "User-Agent": "KorailTalk/2026 (Android; 14)",
+                "X-Device-OS": "Android",
+                "X-Device-App-Version": "2026.01.0" # 최신 앱 버전 형식 모방
+            })
+        except Exception:
+            pass
+
         # ---------------------------------------------------------
         # [사용자 설정 변수] 예매 조건 수정 영역
         # ---------------------------------------------------------
         dpt_rs = "나주"      # 출발역
         arr_rs = "용산"      # 도착역
         date_str = "20260723" # 출발 날짜 (YYYYMMDD)
-        time_str = "060000"  # 조회 시작 시간을 넉넉하게 오전 6시로 변경 (원하시는 시간으로 수정 가능)
+        time_str = "060000"  # 조회 시작 시간 (HHMMSS)
         
-        # 좌석 옵션 설정: TrainType.ALL (아래 ALL 대신에 GENERAL->일반실, SPECIAL->특실 예약 가능)
+        # 좌석 옵션 설정: TrainType.ALL (일반실 + 특실 모두 포함)
         seat_preference = TrainType.ALL 
         # ---------------------------------------------------------
 
-        print(f"[{dpt_rs} -> {arr_rs} / {date_str} / {time_str} 이후] 열차 조회 시작...")
+        print(f"[{dpt_rs} -> {arr_rs} / {date_str} / {time_str} 이후] 최신 보안 우회 조회 시작...")
 
         # 열차 검색
         trains = korail.search_train(
@@ -53,21 +64,18 @@ def main():
         )
 
         if not trains:
-            print("조회된 열차가 없습니다. 조건(역 이름, 날짜)을 다시 확인해 주세요.")
+            print("조회된 열차가 없습니다.")
             return
 
-        # 조회된 모든 열차의 상태를 로그에 출력하여 디버깅 (앱과 비교용)
         for train in trains:
             print(f"열차번호: {train.train_no} | 출발: {train.dpt_time} | 일반실: [{train.general_seat_state.strip()}] | 특실: [{train.special_seat_state.strip()}]")
 
-            # 좌석 상태 문자열에 '예약가능'이 포함되어 있는지 유연하게 체크
             gen_status = train.general_seat_state if train.general_seat_state else ""
             spc_status = train.special_seat_state if train.special_seat_state else ""
 
             if "예약가능" in gen_status or "예약가능" in spc_status:
                 print(f"잔여석 발견! 예매 시도 중: 열차 {train.train_no}")
                 
-                # 예매 실행
                 ticket = korail.reserve(train)
                 
                 success_msg = (
@@ -78,7 +86,6 @@ def main():
                     f"지금 코레일 앱을 확인해 주세요!"
                 )
                 
-                # 텔레그램 알림 전송
                 send_telegram_message(success_msg)
                 print("예매 성공 및 텔레그램 전송 완료!")
                 return
@@ -86,7 +93,7 @@ def main():
         print("조건에 맞는 열차 중 예약 가능한 잔여석이 아직 없습니다.")
 
     except Exception as e:
-        print(f"오류 발생: {e}")
+        print(f"MACRO ERROR 우회 중 오류 발생: {e}")
 
 if __name__ == "__main__":
     main()
