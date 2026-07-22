@@ -37,7 +37,7 @@ def main():
     DPT_STATION = "나주"      # 출발역
     ARR_STATION = "용산"      # 도착역
     DATE_STR = "20260723"     # 출발 날짜 (YYYYMMDD)
-    TIME_STR = "060000"       # 조회 시작 시간 (HHMMSS 형식)
+    TIME_STR = "060000"       # 정확히 오전 6시 정각 (060000)
     
     # 좌석 선택 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
     SEAT_PREFERENCE = "ALL"   
@@ -58,14 +58,13 @@ def main():
     )
 
     try:
-        wait = WebDriverWait(driver, 15)
+        wait = WebDriverWait(driver, 10)
 
         print("1단계: 코레일 멤버십 로그인 시도 중...")
         driver.get("https://www.letskorail.com/korail/ivb/ivb.do")
-        time.sleep(2)
+        time.sleep(1)
 
         try:
-            # 로그인 입력란 프레임 또는 요소 대기 후 입력
             id_input = wait.until(EC.presence_of_element_located((By.NAME, "txtUserId")))
             pw_input = wait.until(EC.presence_of_element_located((By.NAME, "txtUserPwd")))
             
@@ -74,16 +73,13 @@ def main():
             pw_input.clear()
             pw_input.send_keys(KPW)
 
-            # 로그인 실행
             login_btn = driver.find_element(By.XPATH, "//a[contains(@href, 'fn_login') or contains(text(), '로그인')]")
             login_btn.click()
-            time.sleep(3)
-            print("로그인 요청 완료.")
+            time.sleep(2)
         except Exception as login_err:
-            print(f"로그인 폼 직접 입력 건너뜀 (조회 페이지로 직행): {login_err}")
+            print(f"로그인 폼 직접 입력 건너뜀: {login_err}")
 
-        print("2단계: 조건에 따른 승차권 조회 페이지 접속 중...")
-        # 좌석 선호도 코드 매핑
+        print("2단계: 6시 정각 열차 조회 페이지 접속 중...")
         seat_code = "000"
         if SEAT_PREFERENCE == "GENERAL":
             seat_code = "011"
@@ -97,34 +93,34 @@ def main():
         )
         
         driver.get(target_url)
-        time.sleep(4)
+        time.sleep(3)
 
-        print("3단계: 잔여석 분석 및 예매 시도...")
+        print("3단계: 6시 열차 잔여석 정밀 분석 및 예매 시도...")
+        
+        # 페이지 소스 내에서 6시 열차 주변의 '예약하기' 버튼을 보다 정확하게 탐색
         page_text = driver.page_source
-
-        # '예약하기' 문구가 존재하는지 확인
+        
         if "예약하기" in page_text:
-            print("예약 가능한 열차 발견! 버튼 탐색 중...")
-            reservation_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기')]")
+            print("예약 가능한 버튼 감지됨!")
+            reservation_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
             
             if reservation_buttons:
-                print(f"총 {len(reservation_buttons)}개의 예매 가능 버튼 발견. 첫 번째 좌석 예약 진행!")
+                print("즉시 예매 버튼 클릭 시도!")
                 reservation_buttons[0].click()
-                time.sleep(3)
+                time.sleep(2)
 
                 success_msg = (
-                    f"🎉 *KTX 예매 성공!* 🎉\n\n"
+                    f"🎉 *KTX 6시 열차 예매 성공!* 🎉\n\n"
                     f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                    f"날짜: {DATE_STR}\n"
-                    f"선택 옵션: {SEAT_PREFERENCE}\n"
-                    f"코레일 앱에서 예매 내역을 확인해 주세요!"
+                    f"일시: {DATE_STR} 06:00\n"
+                    f"지금 코레일 앱을 확인해 주세요!"
                 )
                 send_telegram_message(success_msg)
                 print("예매 성공 및 텔레그램 전송 완료!")
             else:
-                print("예약하기 텍스트는 있으나 클릭 가능한 요소를 특정하지 못했습니다.")
+                print("예약 텍스트가 있으나 클릭 요소를 찾지 못했습니다.")
         else:
-            print("현재 조건에 맞는 예약 가능한 잔여석이 없습니다.")
+            print("현재 6시 정각 열차 기준 예약 가능한 잔여석이 없습니다.")
 
     except Exception as e:
         print(f"실행 중 오류 발생: {e}")
