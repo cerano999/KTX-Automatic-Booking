@@ -37,7 +37,7 @@ def main():
     DPT_STATION = "나주"      # 출발역
     ARR_STATION = "용산"      # 도착역
     DATE_STR = "20260723"     # 출발 날짜 (YYYYMMDD)
-    TIME_STR = "060000"       # 정확히 오전 6시 정각 (060000)
+    TIME_STR = "060000"       # 조회 기준 시간 (HHMMSS)
     
     # 좌석 선택 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
     SEAT_PREFERENCE = "ALL"   
@@ -93,31 +93,39 @@ def main():
         )
         
         driver.get(target_url)
-        time.sleep(3)
+        time.sleep(4)
 
-        print("3단계: 6시 열차 잔여석 정밀 대기 및 예매 시도...")
+        print("3단계: 테이블 행(Row) 기반 6시 열차 정밀 탐색 및 예매 시도...")
         
-        # 명시적 대기를 통해 '예약하기' 버튼이 DOM에 나타날 때까지 최대 5초 대기
-        try:
-            reservation_button = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]"))
-            )
-            
-            print("예약 가능한 버튼 발견! 즉시 클릭 시도!")
-            reservation_button.click()
-            time.sleep(2)
+        # 조회 결과 테이블의 모든 행(tr)을 순회하며 6시 열차와 '예약하기' 버튼 동시 탐색
+        rows = driver.find_elements(By.TAG_NAME, "tr")
+        booked = False
 
-            success_msg = (
-                f"🎉 *KTX 6시 정각 열차 예매 성공!* 🎉\n\n"
-                f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                f"일시: {DATE_STR} 06:00\n"
-                f"코레일 앱에서 예매 내역을 확인해 주세요!"
-            )
-            send_telegram_message(success_msg)
-            print("예매 성공 및 텔레그램 전송 완료!")
+        for row in rows:
+            row_text = row.text
+            # 06시 출발 열차이면서 예약하기 버튼이 포함되어 있는지 확인
+            if "06" in row_text and ("예약하기" in row_text or "신청" in row_text):
+                print(f"조건 부합 열차 발견: {row_text.replace(os.linesep, ' ')}")
+                
+                # 해당 행 내부의 버튼 요소 찾기
+                buttons = row.find_elements(By.XPATH, ".//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+                if buttons:
+                    buttons[0].click()
+                    time.sleep(2)
+                    
+                    success_msg = (
+                        f"🎉 *KTX 6시 열차 예매 성공!* 🎉\n\n"
+                        f"구간: {DPT_STATION} -> {ARR_STATION}\n"
+                        f"일시: {DATE_STR} 06:00\n"
+                        f"코레일 앱에서 예매 내역을 확인해 주세요!"
+                    )
+                    send_telegram_message(success_msg)
+                    print("예매 성공 및 텔레그램 전송 완료!")
+                    booked = True
+                    break
 
-        except Exception:
-            print("현재 6시 정각 열차 기준 클릭 가능한 예약 버튼이 감지되지 않았습니다.")
+        if not booked:
+            print("현재 6시 정각 열차 기준 예약 가능한 잔여석이 없습니다.")
 
     except Exception as e:
         print(f"실행 중 오류 발생: {e}")
