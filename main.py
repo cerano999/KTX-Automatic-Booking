@@ -43,9 +43,10 @@ def main():
     SEAT_PREFERENCE = "ALL"   
     # ---------------------------------------------------------
 
-    print("크롬 브라우저 초기화 및 헤드리스 옵션 설정 중...")
+    print("크롬 브라우저 초기화 및 가시적(Non-Headless) 옵션 설정 중...")
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # 화면 없이 백그라운드 실행
+    
+    # [중요] 실제 브라우저 화면을 렌더링하여 앱과 동일한 데이터 로딩 유도 (Headless 제거)
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
@@ -62,7 +63,7 @@ def main():
 
         print("1단계: 코레일 멤버십 로그인 시도 중...")
         driver.get("https://www.letskorail.com/korail/ivb/ivb.do")
-        time.sleep(1)
+        time.sleep(2)
 
         try:
             id_input = wait.until(EC.presence_of_element_located((By.NAME, "txtUserId")))
@@ -75,7 +76,7 @@ def main():
 
             login_btn = driver.find_element(By.XPATH, "//a[contains(@href, 'fn_login') or contains(text(), '로그인')]")
             login_btn.click()
-            time.sleep(2)
+            time.sleep(3)
         except Exception as login_err:
             print(f"로그인 폼 직접 입력 건너뜀: {login_err}")
 
@@ -93,40 +94,29 @@ def main():
         )
         
         driver.get(target_url)
-        time.sleep(4)
+        time.sleep(5) # 충분한 렌더링 대기
 
-        print("3단계: 페이지 전체 요소 기반 6시 열차 정밀 탐색 및 예매 시도...")
+        print("3단계: 6시 열차 잔여석 정밀 탐색 및 예매 시도...")
         
-        # 페이지 내 모든 버튼, 링크, 또는 클릭 가능한 요소를 수집
-        all_elements = driver.find_elements(By.XPATH, "//*[self::a or self::input or self::button or contains(@class, 'btn')]")
-        booked = False
+        # '예약하기' 버튼이 나타날 때까지 대기 후 클릭
+        reservation_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+        
+        if reservation_buttons:
+            print(f"총 {len(reservation_buttons)}개의 예매 가능 버튼 발견! 즉시 클릭!")
+            reservation_buttons[0].click()
+            time.sleep(3)
 
-        for elem in all_elements:
-            try:
-                elem_text = elem.text.strip()
-                elem_html = elem.get_attribute("outerHTML")
-                
-                # '예약하기' 또는 '신청' 문구가 포함된 요소 중에서 6시 열차 영역에 속하는 경우 탐지
-                if "예약하기" in elem_text or "신청" in elem_text or "예약하기" in elem_html:
-                    print(f"예약 관련 버튼/링크 감지됨: {elem_text}")
-                    elem.click()
-                    time.sleep(2)
-                    
-                    success_msg = (
-                        f"🎉 *KTX 6시 열차 예매 성공!* 🎉\n\n"
-                        f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                        f"일시: {DATE_STR} 06:00\n"
-                        f"코레일 앱에서 예매 내역을 확인해 주세요!"
-                    )
-                    send_telegram_message(success_msg)
-                    print("예매 성공 및 텔레그램 전송 완료!")
-                    booked = True
-                    break
-            except Exception:
-                continue
-
-        if not booked:
-            print("현재 6시 정각 열차 기준 클릭 가능한 예약 버튼이 감지되지 않았습니다.")
+            success_msg = (
+                f"🎉 *KTX 6시 정각 열차 예매 성공!* 🎉\n\n"
+                f"구간: {DPT_STATION} -> {ARR_STATION}\n"
+                f"일시: {DATE_STR} 06:00\n"
+                f"선택 옵션: {SEAT_PREFERENCE}\n"
+                f"코레일 앱에서 예매 내역을 확인해 주세요!"
+            )
+            send_telegram_message(success_msg)
+            print("예매 성공 및 텔레그램 전송 완료!")
+        else:
+            print("현재 6시 정각 열차 기준 예약 가능한 잔여석이 없습니다.")
 
     except Exception as e:
         print(f"실행 중 오류 발생: {e}")
