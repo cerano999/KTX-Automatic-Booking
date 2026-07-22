@@ -37,6 +37,7 @@ def main():
     DPT_STATION = "나주"          # 출발역
     ARR_STATION = "용산"          # 도착역
     DATE_STR = "20260723"         # 출발 날짜 (YYYYMMDD)
+    BASE_TIME_STR = "060000"      # 조회 기준 시간 (06시 정각)
     
     START_HOUR = 6                # 검색 시작 시간 (6시)
     END_HOUR = 8                  # 검색 종료 시간 (8시)
@@ -92,19 +93,28 @@ def main():
         except Exception as login_err:
             print(f"로그인 자동 입력 예외 발생 (세션 유지 중일 수 있음): {login_err}")
 
-        print(f"2단계: 승차권 조회 메인 페이지 접속 및 {START_HOUR}시~{END_HOUR}시 탐색 시작...")
+        print(f"2단계: {DPT_STATION} -> {ARR_STATION} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 조건 검색 페이지 접속 시작...")
         
-        # 404 에러를 방지하기 위해 정석적인 승차권 조회 메인 페이지로 우선 진입
-        search_main_url = "https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do"
+        seat_code = "000"
+        if SEAT_PREFERENCE == "GENERAL":
+            seat_code = "011"
+        elif SEAT_PREFERENCE == "SPECIAL":
+            seat_code = "012"
+
+        # 필수 검색 파라미터가 모두 포함된 정식 조회 URL 생성
+        target_url = (
+            f"https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do?"
+            f"txtDptRsStnNm={DPT_STATION}&txtArrRsStnNm={ARR_STATION}"
+            f"&txtSeatAttCd={seat_code}&txtTraintype=00&txtStrtDt={DATE_STR}&txtStrtTm={BASE_TIME_STR}"
+        )
 
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 새로고침 및 6~8시 잔여석 파싱 중...")
-            driver.get(search_main_url)
-            time.sleep(4) # 페이지 로딩 대기
+            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 및 6~8시 잔여석 파싱 중...")
+            driver.get(target_url)
+            time.sleep(4) # 데이터 렌더링 대기
 
-            # 페이지 전체 텍스트에서 6시~8시 시간대와 예약 가능 여부 확인
             page_source = driver.page_source
             
             found_target = False
