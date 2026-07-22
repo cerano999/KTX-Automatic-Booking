@@ -37,7 +37,7 @@ def main():
     DPT_STATION = "나주"      # 출발역
     ARR_STATION = "용산"      # 도착역
     DATE_STR = "20260723"     # 출발 날짜 (YYYYMMDD)
-    TIME_STR = "06"           # 조회 시간 (HH 형식, 예: 06시)
+    TIME_STR = "060000"       # 조회 시작 시간 (HHMMSS)
     
     # 좌석 선택 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
     SEAT_PREFERENCE = "ALL"   
@@ -87,24 +87,21 @@ def main():
         except Exception as login_err:
             print(f"로그인 폼 직접 입력 건너뜀: {login_err}")
 
-        print("2단계: 코레일 승차권 조회 페이지 접속 및 폼 데이터 주입 중...")
-        driver.get("https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do")
-        time.sleep(3)
+        print("2단계: 6시 정각 열차 다이렉트 조회 페이지 접속 중...")
+        seat_code = "000"
+        if SEAT_PREFERENCE == "GENERAL":
+            seat_code = "011"
+        elif SEAT_PREFERENCE == "SPECIAL":
+            seat_code = "012"
 
-        # 자바스크립트를 이용해 페이지 내 숨겨진 폼 필드에 조건 값 직접 주입
-        # 코레일 웹 표준 폼 구조 반영
-        script_inject = f"""
-            document.getElementsByName('txtDptRsStnNm')[0].value = '{DPT_STATION}';
-            document.getElementsByName('txtArrRsStnNm')[0].value = '{ARR_STATION}';
-            document.getElementsByName('txtStrtDt')[0].value = '{DATE_STR}';
-            document.getElementsByName('txtStrtTm')[0].value = '{TIME_STR}0000';
-        """
-        driver.execute_script(script_inject)
-        print("조건 값 주입 완료. 공식 조회 함수(fn_search) 실행 중...")
-
-        # 코레일 내부 조회 자바스크립트 함수 강제 실행 (실제 사용자가 검색 버튼을 누른 것과 동일한 효과)
-        driver.execute_script("fn_search();")
-        time.sleep(5) # 서버 응답 및 테이블 렌더링 대기
+        target_url = (
+            f"https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do?"
+            f"txtDptRsStnNm={DPT_STATION}&txtArrRsStnNm={ARR_STATION}"
+            f"&txtSeatAttCd={seat_code}&txtTraintype=00&txtStrtDt={DATE_STR}&txtStrtTm={TIME_STR}"
+        )
+        
+        driver.get(target_url)
+        time.sleep(5) # 실시간 데이터 렌더링 대기
 
         print("3단계: 6시 열차 잔여석 정밀 탐색 및 예매 시도...")
         
@@ -126,7 +123,7 @@ def main():
             send_telegram_message(success_msg)
             print("예매 성공 및 텔레그램 전송 완료!")
         else:
-            print("현재 조건에 맞는 예약 가능한 잔여석이 없습니다.")
+            print("현재 6시 정각 열차 기준 예약 가능한 잔여석이 없습니다.")
 
     except Exception as e:
         print(f"실행 중 오류 발생: {e}")
