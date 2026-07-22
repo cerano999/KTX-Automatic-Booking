@@ -1,7 +1,13 @@
 import os
 import time
 import requests
-from korail2 import Korail, TrainType
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
 # 환경 변수에서 계정 정보 불러오기
 KID = os.getenv("KID")
@@ -31,93 +37,128 @@ def main():
     DPT_STATION = "나주"          # 출발역
     ARR_STATION = "용산"          # 도착역
     DATE_STR = "20260723"         # 출발 날짜 (YYYYMMDD)
-    TIME_STR = "060000"           # 조회 시작 시간 (06시 정각)
+    BASE_TIME_STR = "060000"      # 조회 기준 시간 (06시)
     
-    # 좌석 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
-    SEAT_PREFERENCE = "ALL"
+    START_HOUR = 6                # 검색 시작 시간 (6시)
+    END_HOUR = 8                  # 검색 종료 시간 (8시)
     
-    # 반복 조회 횟수 및 딜레이
-    MAX_RETRIES = 20
-    RETRY_DELAY = 3
+    # 좌석 선택 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
+    SEAT_PREFERENCE = "ALL"   
+    
+    # 반복 조회 횟수 및 대기 시간 설정
+    MAX_RETRIES = 25
+    RETRY_DELAY = 2
     # ---------------------------------------------------------
 
-    print("korail2 API 모듈을 통한 6~8시 KTX 실시간 감시 시작...")
+    print("크롬 브라우저 초기화 및 안티보안 우회 헤드리스 설정 중...")
+    chrome_options = Options()
+    
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option("useAutomationExtension", False)
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
 
-    for attempt in range(1, MAX_RETRIES + 1):
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()),
+        options=chrome_options
+    )
+
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
+    try:
+        wait = WebDriverWait(driver, 10)
+
+        print("1단계: 코레일 멤버십 로그인 시도 중...")
+        driver.get("https://www.letskorail.com/korail/ivb/ivb.do")
+        time.sleep(2)
+
         try:
-            # 코레일 객체 생성 및 로그인
-            korail = Korail(KID, KPW)
+            id_input = wait.until(EC.presence_of_element_located((By.NAME, "txtUserId")))
+            pw_input = wait.until(EC.presence_of_element_located((By.NAME, "txtUserPwd")))
             
-            # 06시 기준으로 열차 검색 (korail2 표준 위치 인자 사용)
-            trains = korail.search_train(
-                DPT_STATION,
-                ARR_STATION,
-                DATE_STR,
-                TIME_STR,
-                train_type=TrainType.KTX
-            )
+            id_input.clear()
+            id_input.send_keys(KID)
+            pw_input.clear()
+            pw_input.send_keys(KPW)
 
-            if not trains:
-                print(f"[{attempt}/{MAX_RETRIES}] 조회된 열차가 없습니다. {RETRY_DELAY}초 후 재시도...")
-                time.sleep(RETRY_DELAY)
-                continue
+            login_btn = driver.find_element(By.XPATH, "//a[contains(@href, 'fn_login') or contains(text(), '로그인')]")
+            login_btn.click()
+            time.sleep(3)
+        except Exception as login_err:
+            print(f"로그인 폼 직접 입력 건너뜀: {login_err}")
 
-            booked = False
-            for train in trains:
-                # 출발 시간 시각 추출 (예: "061500" -> 시간은 "06")
-                dep_hour = int(train.dep_time[:2])
-                
-                # [요청 반영] 정확히 6시부터 8시 사이의 열차만 타겟팅
-                if 6 <= dep_hour < 8:
-                    print(f"열차 발견: {train.dep_date} {train.dep_time} 출발 (열차번호: {train.train_no})")
-                    
-                    general_seat = train.general_seat_state
-                    special_seat = train.special_seat_state
-                    
-                    print(f"일반실 상태: {general_seat} / 특실 상태: {special_seat}")
+        print(f"2단계: {START_HOUR}시부터 {END_HOUR}시 사이 열차 정밀 탐색 시작...")
+        seat_code = "000"
+        if SEAT_PREFERENCE == "GENERAL":
+            seat_code = "011"
+        elif SEAT_PREFERENCE == "SPECIAL":
+            seat_code = "012"
 
-                    can_book_general = general_seat != "FULL" and "매진" not in general_seat
-                    can_book_special = special_seat != "FULL" and "매진" not in special_seat
+        target_url = (
+            f"https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do?"
+            f"txtDptRsStnNm={DPT_STATION}&txtArrRsStnNm={ARR_STATION}"
+            f"&txtSeatAttCd={seat_code}&txtTraintype=00&txtStrtDt={DATE_STR}&txtStrtTm={BASE_TIME_STR}"
+        )
+        
+        booked_success = False
 
-                    target_to_book = None
-                    if SEAT_PREFERENCE == "GENERAL" and can_book_general:
-                        target_to_book = "일반실"
-                    elif SEAT_PREFERENCE == "SPECIAL" and can_book_special:
-                        target_to_book = "특실"
-                    elif SEAT_PREFERENCE == "ALL":
-                        if can_book_general:
-                            target_to_book = "일반실"
-                        elif can_book_special:
-                            target_to_book = "특실"
+        for attempt in range(1, MAX_RETRIES + 1):
+            print(f"[{attempt}/{MAX_RETRIES}] 코레일 승차권 페이지 렌더링 및 6~8시 잔여석 파싱 중...")
+            driver.get(target_url)
+            time.sleep(4)
 
-                    if target_to_book:
-                        print(f"🎉 6~8시 시간대 열차 {target_to_book} 잔여석 포착! 예매 시도 중...")
-                        
-                        reservation = korail.reserve(train)
-                        
-                        success_msg = (
-                            f"🎉 *KTX 6~8시 시간대 예매 성공!* 🎉\n\n"
-                            f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                            f"일시: {train.dep_date} {train.dep_time} ({target_to_book})\n"
-                            f"열차번호: {train.train_no}\n"
-                            f"코레일 앱에서 결제를 완료해 주세요!"
-                        )
-                        send_telegram_message(success_msg)
-                        print("예매 성공 및 텔레그램 전송 완료!")
-                        booked = True
-                        break
-                    else:
-                        print(f"{train.dep_time} 출발 열차는 현재 잔여석이 매진 상태입니다.")
+            rows = driver.find_elements(By.TAG_NAME, "tr")
+            
+            found_target = False
+            for row in rows:
+                try:
+                    row_text = row.text
+                    if ":" in row_text:
+                        for h in range(START_HOUR, END_HOUR):
+                            target_hour_str = f"{h:02d}:"
+                            if target_hour_str in row_text:
+                                if "예약하기" in row_text or "신청" in row_text:
+                                    print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능한 열차 포착!")
+                                    
+                                    action_btn = row.find_element(By.XPATH, ".//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+                                    action_btn.click()
+                                    time.sleep(3)
 
-            if booked:
+                                    success_msg = (
+                                        f"🎉 *KTX {START_HOUR}~{END_HOUR}시 시간대 예매 성공!* 🎉\n\n"
+                                        f"구간: {DPT_STATION} -> {ARR_STATION}\n"
+                                        f"일시: {DATE_STR} ({START_HOUR}:00 ~ {END_HOUR}:00)\n"
+                                        f"코레일 앱에서 예매 내역을 확인해 주세요!"
+                                    )
+                                    send_telegram_message(success_msg)
+                                    print("예매 성공 및 텔레그램 전송 완료!")
+                                    booked_success = True
+                                    found_target = True
+                                    break
+                except Exception as row_err:
+                    continue
+
+                if found_target:
+                    break
+
+            if booked_success:
                 break
             else:
-                print(f"[{attempt}/{MAX_RETRIES}] 6~8시 범위 내 예매 가능한 좌석 없음. {RETRY_DELAY}초 후 재시도...")
+                print(f"조건 범위 내 잔여석 없음. {RETRY_DELAY}초 후 재시도합니다.")
                 time.sleep(RETRY_DELAY)
 
-        except Exception as e:
-            print(f"예매 처리 중 오류 발생: {e}")
-            time.sleep(RETRY_DELAY)
+        if not booked_success:
+            print("설정된 최대 재시도 횟수 동안 범위 내 예약 가능한 잔여석이 발견되지 않았습니다.")
+
+    except Exception as e:
+        print(f"실행 중 오류 발생: {e}")
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
     main()
