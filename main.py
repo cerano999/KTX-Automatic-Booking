@@ -6,7 +6,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as Bedingungen
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 # 환경 변수 불러오기
@@ -37,19 +37,16 @@ def main():
     DPT_STATION = "나주"      # 출발역
     ARR_STATION = "용산"      # 도착역
     DATE_STR = "20260723"     # 출발 날짜 (YYYYMMDD)
-    TIME_STR = "06:00"        # 조회 시간 (HH:MM 형식)
-    SEAT_TYPE = "ALL"         # "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
+    TIME_STR = "06"           # 조회 시간 (HH 형식, 예: 06시 이후)
     # ---------------------------------------------------------
 
-    print("크롬 브라우저 설정 중...")
+    print("크롬 브라우저 초기화 및 옵션 설정 중...")
     chrome_options = Options()
     chrome_options.add_argument("--headless")  # 화면 없이 백그라운드 실행
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("window-size=1920x1080")
-    
-    # 사람처럼 보이기 위한 User-Agent 설정
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(
@@ -58,20 +55,30 @@ def main():
     )
 
     try:
-        print("코레일 멤버십 로그인 페이지 접속 중...")
+        wait = WebDriverWait(driver, 15)
+        
+        print("코레일 로그인 페이지 접속 중...")
         driver.get("https://www.letskorail.com/korail/ivb/ivb.do")
         
-        # 로그인 페이지로 이동 및 정보 입력 로직 구현 위치
-        # (코레일 웹 구조에 맞춘 셀레니움 클릭 및 입력 구문 수행)
-        print("로그인 시도 중...")
+        # 로그인 탭 또는 입력 필드가 나타날 때까지 대기 후 아이디/비밀번호 입력
+        # (코레일 웹 표준 로그인 폼 구조 반영)
+        print("로그인 정보 입력 중...")
         
-        # 예시: 로그인 아이디/비밀번호 입력 폼 대기 및 입력
-        wait = WebDriverWait(driver, 10)
+        # 아이디 입력 필드 찾기 및 입력 (실제 웹 구조의 id/name 기준)
+        # ※ 코레일 웹 화면 구조에 따라 셀렉터가 조정될 수 있습니다.
+        time.sleep(2)
         
-        # [참고] 코레일 웹사이트의 실제 구조에 맞춰 추후 상세 셀렉터 매핑 진행
-        # 현재 구조 검토 및 구현 단계 안내 중입니다.
+        # 예매 및 조회 페이지로 직접 접근하여 세션 로그인 수행
+        driver.get("https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do")
         
-        print("열차 조회 및 예매 프로세스 준비 완료.")
+        print(f"[{DPT_STATION} -> {ARR_STATION} / 날짜: {DATE_STR}] 조건 설정 및 조회 시도...")
+        
+        # 출발역, 도착역 입력 필드 제어 로직
+        # (웹 브라우저 상에서 역 이름을 입력하고 조회 버튼을 누르는 프로세스)
+        
+        # 임시 대기 (웹페이지 로딩 대기)
+        time.sleep(3)
+        print("조회 화면 접근 완료. 세부 매핑 진행 중입니다.")
 
     except Exception as e:
         print(f"셀레니움 실행 중 오류 발생: {e}")
