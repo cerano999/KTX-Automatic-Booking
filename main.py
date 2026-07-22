@@ -43,13 +43,13 @@ def main():
         korail = Korail(KID, KPW)
         print("코레일 멤버십 로그인 성공.")
 
-        # korail2 라이브러리 규격에 맞는 파라미터(departure, arrival)로 수정
+        # korail2 라이브러리의 표준 위치 인자 순서에 맞춰 호출 (출발역, 도착역, 날짜, 시간)
         trains = korail.search_train(
-            departure=DPT_STATION,
-            arrival=ARR_STATION,
-            date=DATE_STR,
-            time=TIME_STR,
-            train_type=TrainType.KTX  # KTX 지정
+            DPT_STATION,
+            ARR_STATION,
+            DATE_STR,
+            TIME_STR,
+            train_type=TrainType.KTX
         )
 
         if not trains:
