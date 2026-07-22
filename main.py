@@ -43,23 +43,27 @@ def main():
     SEAT_PREFERENCE = "ALL"   
     # ---------------------------------------------------------
 
-    print("크롬 브라우저 초기화 및 안정적인 Headless 옵션 설정 중...")
+    print("크롬 브라우저 초기화 및 안티보안 우회 헤드리스 옵션 설정 중...")
     chrome_options = Options()
     
-    # GitHub Actions 리눅스 환경에 맞춘 필수 Headless 및 보안 우회 옵션
+    # 봇 탐지 우회 및 안정성 강화 옵션
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--dns-prefetch-disable")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option("useAutomationExtension", False)
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
         options=chrome_options
     )
+
+    # 봇 탐지 회피용 자바스크립트 실행
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
     try:
         wait = WebDriverWait(driver, 10)
@@ -97,11 +101,11 @@ def main():
         )
         
         driver.get(target_url)
-        time.sleep(5) # 충분한 데이터 렌더링 대기
+        time.sleep(5) # 실시간 데이터 렌더링 대기
 
         print("3단계: 6시 열차 잔여석 정밀 탐색 및 예매 시도...")
         
-        # '예약하기' 버튼 감지 및 즉시 예매 시도
+        # '예약하기' 또는 '신청' 버튼 탐색
         reservation_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
         
         if reservation_buttons:
