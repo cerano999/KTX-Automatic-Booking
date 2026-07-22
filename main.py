@@ -37,16 +37,16 @@ def main():
     DPT_STATION = "나주"          # 출발역
     ARR_STATION = "용산"          # 도착역
     DATE_STR = "20260723"         # 출발 날짜 (YYYYMMDD)
-    BASE_TIME_STR = "060000"      # 기준 조회 시간 (HHMMSS, 예: 06시)
+    BASE_TIME_STR = "060000"      # 기준 조회 시간 (HHMMSS)
     
-    # [사용자 설정] 조회 시간 기준 허용 범위 (단위: 시간) - 이 범위 내의 표를 예매합니다.
+    # [사용자 설정] 조회 시간 기준 허용 범위 (단위: 시간). 이 범위 내의 표를 예매합니다.
     TIME_RANGE_HOURS = 2          
     
     # 좌석 선택 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
     SEAT_PREFERENCE = "ALL"   
     
-    # 반복 조회 횟수 및 딜레이 설정
-    MAX_RETRIES = 20
+    # 반복 조회 횟수 및 대기 시간 설정
+    MAX_RETRIES = 25
     RETRY_DELAY = 2
     # ---------------------------------------------------------
 
@@ -112,30 +112,31 @@ def main():
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 및 잔여석 파싱 중...")
+            print(f"[{attempt}/{MAX_RETRIES}] 코레일 승차권 페이지 렌더링 및 잔여석 정밀 파싱 중...")
             driver.get(target_url)
-            time.sleep(4) # 동적 테이블 렌더링 충분히 대기
+            time.sleep(4) # 비동기 데이터 렌더링 대기
 
-            # 코레일 결과 페이지의 열차 행(Row) 요소들 가져오기
-            train_rows = driver.find_elements(By.TAG_NAME, "tr")
+            # 코레일 결과 페이지의 모든 테이블 행 탐색
+            rows = driver.find_elements(By.TAG_NAME, "tr")
             
             found_target = False
-            for row in train_rows:
-                row_text = row.text
-                # 시간 형태(예: 06:xx 또는 07:xx 등)가 포함된 행 필터링
-                if ":" in row_text:
-                    for h in range(min_hour, max_hour + 1):
-                        hour_str = f"{h:02d}:"
-                        if hour_str in row_text:
-                            # 해당 시간에 예매 가능한 버튼이 있는지 확인
-                            if "예약하기" in row_text or "신청" in row_text:
-                                print(f"🎯 허용 시간대({min_hour}시~{max_hour}시) 내 예매 가능 열차 발견!")
-                                # 해당 행 내부의 예약 버튼 클릭
-                                try:
-                                    btn = row.find_element(By.XPATH, ".//*[contains(text(), '예약하기') or contains(text(), '신청')]")
-                                    btn.click()
-                                    time.sleep(3)
+            for row in rows:
+                try:
+                    row_text = row.text
+                    # 시간 형태가 포함된 행 대상 필터링
+                    if ":" in row_text:
+                        for h in range(min_hour, max_hour + 1):
+                            target_hour_str = f"{h:02d}:"
+                            if target_hour_str in row_text:
+                                # '예약하기' 또는 '신청' 텍스트를 포함하는 버튼 요소 확인
+                                if "예약하기" in row_text or "신청" in row_text:
+                                    print(f"🎯 허용 시간대({min_hour}시~{max_hour}시) 내 예매 가능한 열차 포착!")
                                     
+                                    # 해당 행의 예매 버튼 클릭 시도
+                                    action_btn = row.find_element(By.XPATH, ".//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+                                    action_btn.click()
+                                    time.sleep(3)
+
                                     success_msg = (
                                         f"🎉 *KTX 맞춤 시간대 예매 성공!* 🎉\n\n"
                                         f"구간: {DPT_STATION} -> {ARR_STATION}\n"
@@ -147,10 +148,11 @@ def main():
                                     booked_success = True
                                     found_target = True
                                     break
-                                except Exception as click_err:
-                                    print(f"버튼 클릭 중 예외 발생: {click_err}")
-                    if found_target:
-                        break
+                except Exception as row_err:
+                    continue
+
+                if found_target:
+                    break
 
             if booked_success:
                 break
