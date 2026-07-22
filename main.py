@@ -60,30 +60,30 @@ def main():
     try:
         wait = WebDriverWait(driver, 15)
 
-        print("1단계: 코레일 로그인 페이지 접속 중...")
+        print("1단계: 코레일 멤버십 로그인 시도 중...")
         driver.get("https://www.letskorail.com/korail/ivb/ivb.do")
         time.sleep(2)
 
-        # 로그인 정보 입력 (아이디, 비밀번호)
-        print("로그인 정보 입력 시도...")
         try:
-            id_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserId")))
-            pw_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserPwd")))
+            # 로그인 입력란 프레임 또는 요소 대기 후 입력
+            id_input = wait.until(EC.presence_of_element_located((By.NAME, "txtUserId")))
+            pw_input = wait.until(EC.presence_of_element_located((By.NAME, "txtUserPwd")))
             
             id_input.clear()
             id_input.send_keys(KID)
             pw_input.clear()
             pw_input.send_keys(KPW)
 
-            # 로그인 버튼 클릭
+            # 로그인 실행
             login_btn = driver.find_element(By.XPATH, "//a[contains(@href, 'fn_login') or contains(text(), '로그인')]")
             login_btn.click()
             time.sleep(3)
+            print("로그인 요청 완료.")
         except Exception as login_err:
-            print(f"로그인 폼 직접 입력 중 예외 발생 (간이 세션으로 우회 시도): {login_err}")
+            print(f"로그인 폼 직접 입력 건너뜀 (조회 페이지로 직행): {login_err}")
 
         print("2단계: 조건에 따른 승차권 조회 페이지 접속 중...")
-        # 좌석 선호도 코드 매핑 (ALL: 000, 일반실: 011, 특실: 012 등 코레일 규격 반영)
+        # 좌석 선호도 코드 매핑
         seat_code = "000"
         if SEAT_PREFERENCE == "GENERAL":
             seat_code = "011"
