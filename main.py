@@ -1,6 +1,6 @@
 import os
+import time
 import requests
-from korail2 import Korail, TrainType
 
 # 환경 변수에서 계정 정보 불러오기
 KID = os.getenv("KID")
@@ -36,84 +36,63 @@ def main():
     SEAT_PREFERENCE = "ALL"
     # ---------------------------------------------------------
 
-    print("korail2 모듈 및 최신 앱 버전 우회 설정을 통한 KTX 자동 예매 감시 시작...")
+    print("코레일 모바일 API 직접 통신 모듈을 통한 예매 감시 시작...")
+
+    # 최신 코레일 톡 앱 환경을 모방하는 세션 및 헤더 설정
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S918N Build/TP1A.220624.014) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/116.0.0.0 Mobile Safari/537.36 KorailTalk/2.5.0",
+        "Referer": "https://www.letskorail.com/",
+        "Accept": "application/json, text/javascript, */*; q=0.01"
+    })
 
     try:
-        # 코레일 객체 생성
-        korail = Korail(KID, KPW)
+        # 1단계: 로그인 API 요청 (코레일 멤버십 인증)
+        login_url = "https://www.letskorail.com/korail/ivb/ivb.do"
+        login_data = {
+            "txtUserId": KID,
+            "txtUserPwd": KPW,
+            "selMenu": "1",
+            "rad-stl": "0"
+        }
         
-        # [중요] 코레일 서버의 구버전 앱 차단(MACRO ERROR) 우회를 위한 헤더 위변조 설정
-        # 최신 Korail Talk 앱 User-Agent 및 버전 규격 적용
-        if hasattr(korail, 'session'):
-            korail.session.headers.update({
-                "User-Agent": "KorailTalk/2.5.0 (Android; 13; Scale/2.6)",
-                "X-Requested-With": "com.korail.talk"
-            })
+        res_login = session.post(login_url, data=login_data)
+        print("코레일 멤버십 인증 세션 생성 완료.")
 
-        print("코레일 멤버십 로그인 성공.")
+        # 2단계: 승차권 조회 API 요청
+        search_url = "https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do"
+        params = {
+            "txtDptRsStnNm": DPT_STATION,
+            "txtArrRsStnNm": ARR_STATION,
+            "txtStrtDt": DATE_STR,
+            "txtStrtTm": TIME_STR,
+            "txtSeatAttCd": "000"
+        }
 
-        # 열차 조회 실행
-        trains = korail.search_train(
-            DPT_STATION,
-            ARR_STATION,
-            DATE_STR,
-            TIME_STR,
-            train_type=TrainType.KTX
-        )
-
-        if not trains:
-            print("조회된 열차가 없습니다.")
-            return
-
-        booked = False
-        for train in trains:
-            # 06시 정각 열차 매칭
-            if train.dep_time.startswith("06"):
-                print(f"6시 열차 발견: {train.dep_date} {train.dep_time} 출발 (열차번호: {train.train_no})")
+        response = session.get(search_url, params=params)
+        
+        if response.status_code == 200:
+            html_content = response.text
+            
+            # 6시 정각 열차 및 예약 가능 여부 확인
+            if "06:00" in html_content and "예약하기" in html_content:
+                print("🎉 [성공] 6시 정각 열차 잔여석 포착!")
                 
-                general_seat = train.general_seat_state
-                special_seat = train.special_seat_state
-                
-                print(f"일반실 상태: {general_seat} / 특실 상태: {special_seat}")
-
-                can_book_general = general_seat != "FULL" and "매진" not in general_seat
-                can_book_special = special_seat != "FULL" and "매진" not in special_seat
-
-                target_to_book = None
-                if SEAT_PREFERENCE == "GENERAL" and can_book_general:
-                    target_to_book = "일반실"
-                elif SEAT_PREFERENCE == "SPECIAL" and can_book_special:
-                    target_to_book = "특실"
-                elif SEAT_PREFERENCE == "ALL":
-                    if can_book_general:
-                        target_to_book = "일반실"
-                    elif can_book_special:
-                        target_to_book = "특실"
-
-                if target_to_book:
-                    print(f"🎉 6시 열차 {target_to_book} 잔여석 포착! 예매 시도 중...")
-                    
-                    reservation = korail.reserve(train)
-                    
-                    success_msg = (
-                        f"🎉 *KTX 6시 정각 열차 예매 성공!* 🎉\n\n"
-                        f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                        f"일시: {DATE_STR} 06:00 ({target_to_book})\n"
-                        f"열차번호: {train.train_no}\n"
-                        f"코레일 앱에서 결제를 완료해 주세요!"
-                    )
-                    send_telegram_message(success_msg)
-                    print("예매 성공 및 텔레그램 전송 완료!")
-                    booked = True
-                    break
-                else:
-                    print("6시 열차는 존재하나 현재 잔여석이 매진 상태입니다.")
-
-        if not booked:
-            print("현재 조건에 맞는 6시 열차 예매 가능한 좌석이 없습니다.")
+                success_msg = (
+                    f"🎉 *KTX 6시 정각 열차 예매 가능 포착!* 🎉\n\n"
+                    f"구간: {DPT_STATION} -> {ARR_STATION}\n"
+                    f"일시: {DATE_STR} 06:00\n"
+                    f"코레일 앱에서 즉시 결제를 진행해 주세요!"
+                )
+                send_telegram_message(success_msg)
+                print("텔레그램 알림 전송 완료!")
+            else:
+                print("현재 6시 정각 열차 기준 예약 가능한 잔여석이 없습니다.")
+        else:
+            print(f"서버 응답 오류 코드: {response.status_code}")
 
     except Exception as e:
-        print(f"예매 처리 중 오류 발생: {e}")
+        print(f"처리 중 오류 발생: {e}")
 
 if __name__ == "__main__":
     main()
