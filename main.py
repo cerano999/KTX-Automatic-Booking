@@ -37,22 +37,19 @@ def main():
     DPT_STATION_NAME = "나주"      # 출발역 이름
     ARR_STATION_NAME = "용산"      # 도착역 이름
     
-    # 코레일 내부 시스템 코드 (나주: 0245, 용산: 0002)
-    DPT_STATION_CODE = "0245"      
-    ARR_STATION_CODE = "0002"      
+    DPT_STATION_CODE = "0245"      # 나주역 코드
+    ARR_STATION_CODE = "0002"      # 용산역 코드
     
     DATE_STR = "20260723"         # 출발 날짜 (YYYYMMDD)
-    BASE_TIME_STR = "060000"      # 조회 기준 시간 (06시 정각)
+    BASE_TIME_STR = "060000"      # 조회 기준 시간 (06시)
     
     START_HOUR = 6                # 검색 시작 시간 (6시)
     END_HOUR = 8                  # 검색 종료 시간 (8시)
     
-    # 좌석 선택 옵션: "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
-    SEAT_PREFERENCE = "ALL"   
+    SEAT_PREFERENCE = "ALL"       # 좌석 옵션
     
-    # 반복 조회 횟수 및 대기 시간 설정 (새로고침 속도 최적화)
-    MAX_RETRIES = 30
-    RETRY_DELAY = 1.5
+    MAX_RETRIES = 30              # 반복 조회 횟수
+    RETRY_DELAY = 1.5             # 재시도 딜레이 (초)
     # ---------------------------------------------------------
 
     print("크롬 브라우저 초기화 및 안티보안 우회 헤드리스 설정 중...")
@@ -98,7 +95,7 @@ def main():
         except Exception as login_err:
             print(f"로그인 자동 입력 예외 발생 (세션 유지 중일 수 있음): {login_err}")
 
-        print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 실시간 감시 시작...")
+        print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 정밀 감시 시작...")
         
         seat_code = "000"
         if SEAT_PREFERENCE == "GENERAL":
@@ -116,28 +113,21 @@ def main():
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 새로고침 및 동적 테이블 스캔 중...")
+            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 새로고침 및 6~8시 잔여석 파싱 중...")
             driver.get(target_url)
-            
-            # 동적 테이블 요소가 로드될 때까지 최대 5초 대기
-            try:
-                WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.TAG_NAME, "table"))
-                )
-            except:
-                pass
+            time.sleep(3)
 
-            # 페이지 내 모든 버튼 및 링크 텍스트 수집 검사
             try:
-                # '예약하기' 또는 '신청' 텍스트를 가진 모든 요소를 직접 탐색
-                all_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+                # 페이지 내 모든 예약 관련 버튼 탐색
+                buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
                 
-                if all_buttons:
-                    for btn in all_buttons:
-                        # 부모 행(Row)의 텍스트를 추출하여 6시~8시 사이 시간대인지 확인
-                        parent_row = btn.find_element(By.XPATH, "./ancestor::tr")
-                        row_text = parent_row.text
+                for btn in buttons:
+                    try:
+                        # 버튼이 속한 부모 행(Row) 추출
+                        row = btn.find_element(By.XPATH, "./ancestor::tr")
+                        row_text = row.text
                         
+                        # 6시 또는 7시 열차인지 확인 (06:, 07:)
                         if any(f"{h:02d}:" in row_text for h in range(START_HOUR, END_HOUR)):
                             print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능 좌석 포착! 즉시 클릭!")
                             btn.click()
@@ -153,8 +143,10 @@ def main():
                             print("예매 성공 및 텔레그램 전송 완료!")
                             booked_success = True
                             break
-            except Exception as parse_err:
-                print(f"파싱 중 예외 발생: {parse_err}")
+                    except Exception:
+                        continue
+            except Exception as e:
+                print(f"파싱 중 예외 발생: {e}")
 
             if booked_success:
                 break
