@@ -55,10 +55,7 @@ def main():
     )
 
     try:
-        print("코레일 간편 조회 URL 직접 접속 중...")
-        
-        # 코레일 승차권 조회 페이지로 직접 파라미터를 전달하여 우회 접속
-        # (역 이름 입력 오류를 방지하기 위한 다이렉트 URL 접근 방식)
+        print("코레일 간편 조회 URL 접속 중...")
         target_url = (
             f"https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do?"
             f"txtDptRsStnNm={DPT_STATION}&txtArrRsStnNm={ARR_STATION}"
@@ -66,16 +63,34 @@ def main():
         )
         
         driver.get(target_url)
-        time.sleep(5) # 페이지 로딩 대기
+        time.sleep(5) # 페이지 렌더링 대기
 
-        print("페이지 접속 및 조회 파라미터 전달 완료.")
+        print("조회 결과 페이지 분석 시작...")
         
-        # 페이지 소스 확인 또는 잔여석 파싱 준비 단계
-        page_title = driver.title
-        print(f"현재 페이지 타이틀: {page_title}")
-
-        success_msg = f"🎉 *KTX 셀레니움 조회 테스트 성공* 🎉\n구간: {DPT_STATION} -> {ARR_STATION} ({DATE_STR})"
-        send_telegram_message(success_msg)
+        # 페이지 내의 열차 정보 테이블 행(Row) 탐색
+        # 코레일 웹 조회 결과 테이블의 일반실/특실 잔여석 버튼 탐색
+        # '예약하기' 또는 '예약가능' 텍스트가 포함된 요소를 찾습니다.
+        
+        page_text = driver.page_source
+        
+        if "예약하기" in page_text:
+            print("잔여석 발견 가능성 있음! 상세 예약 버튼 탐색 중...")
+            
+            # '예약하기' 버튼을 찾아 클릭하는 셀레니움 로직
+            reservation_buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기')]")
+            
+            if reservation_buttons:
+                print(f"총 {len(reservation_buttons)}개의 예약 가능 버튼 발견. 첫 번째 좌석 예매 시도!")
+                reservation_buttons[0].click()
+                time.sleep(3)
+                
+                success_msg = f"🎉 *KTX 예매 버튼 클릭 성공!* 🎉\n구간: {DPT_STATION} -> {ARR_STATION} ({DATE_STR})\n앱에서 예매 내역을 확인해 주세요!"
+                send_telegram_message(success_msg)
+                print("예매 성공 알림 전송 완료.")
+            else:
+                print("텍스트는 존재하나 클릭 가능한 버튼을 특정하지 못했습니다.")
+        else:
+            print("현재 조건에 맞는 예약 가능한 잔여석이 없습니다.")
 
     except Exception as e:
         print(f"셀레니움 실행 중 오류 발생: {e}")
