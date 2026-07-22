@@ -34,8 +34,13 @@ def main():
     # ---------------------------------------------------------
     # [사용자 설정 변수] 예매 조건 설정 영역
     # ---------------------------------------------------------
-    DPT_STATION = "나주"          # 출발역
-    ARR_STATION = "용산"          # 도착역
+    DPT_STATION_NAME = "나주"      # 출발역 이름
+    ARR_STATION_NAME = "용산"      # 도착역 이름
+    
+    # 코레일 내부 시스템 코드 (나주: 0245, 용산: 0002)
+    DPT_STATION_CODE = "0245"      
+    ARR_STATION_CODE = "0002"      
+    
     DATE_STR = "20260723"         # 출발 날짜 (YYYYMMDD)
     BASE_TIME_STR = "060000"      # 조회 기준 시간 (06시 정각)
     
@@ -93,7 +98,7 @@ def main():
         except Exception as login_err:
             print(f"로그인 자동 입력 예외 발생 (세션 유지 중일 수 있음): {login_err}")
 
-        print(f"2단계: {DPT_STATION} -> {ARR_STATION} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 조건 검색 페이지 접속 시작...")
+        print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 역 코드 기반 검색 시작...")
         
         seat_code = "000"
         if SEAT_PREFERENCE == "GENERAL":
@@ -101,10 +106,11 @@ def main():
         elif SEAT_PREFERENCE == "SPECIAL":
             seat_code = "012"
 
-        # 필수 검색 파라미터가 모두 포함된 정식 조회 URL 생성
+        # 역 이름 대신 공식 역 코드(txtGoStart, txtGoEnd)를 사용하는 정밀 조회 URL
         target_url = (
             f"https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do?"
-            f"txtDptRsStnNm={DPT_STATION}&txtArrRsStnNm={ARR_STATION}"
+            f"txtGoStart={DPT_STATION_CODE}&txtGoEnd={ARR_STATION_CODE}"
+            f"&txtDptRsStnCd={DPT_STATION_CODE}&txtArrRsStnCd={ARR_STATION_CODE}"
             f"&txtSeatAttCd={seat_code}&txtTraintype=00&txtStrtDt={DATE_STR}&txtStrtTm={BASE_TIME_STR}"
         )
 
@@ -138,7 +144,7 @@ def main():
 
                                 success_msg = (
                                     f"🎉 *KTX {START_HOUR}~{END_HOUR}시 시간대 예매 성공!* 🎉\n\n"
-                                    f"구간: {DPT_STATION} -> {ARR_STATION}\n"
+                                    f"구간: {DPT_STATION_NAME} -> {ARR_STATION_NAME}\n"
                                     f"일시: {DATE_STR} ({START_HOUR}:00 ~ {END_HOUR}:00)\n"
                                     f"코레일 앱에서 예매 내역을 확인해 주세요!"
                                 )
