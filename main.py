@@ -1,5 +1,6 @@
 import os
 import time
+import re
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -92,7 +93,7 @@ def main():
         except Exception as login_err:
             print(f"로그인 폼 직접 입력 건너뜀: {login_err}")
 
-        print(f"2단계: {START_HOUR}시부터 {END_HOUR}시 사이 열차 정밀 탐색 시작...")
+        print(f"2단계: {START_HOUR}시부터 {END_HOUR}시 사이 열차 텍스트 정밀 탐색 시작...")
         seat_code = "000"
         if SEAT_PREFERENCE == "GENERAL":
             seat_code = "011"
@@ -108,44 +109,43 @@ def main():
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] 코레일 승차권 페이지 렌더링 및 6~8시 잔여석 파싱 중...")
+            print(f"[{attempt}/{MAX_RETRIES}] 페이지 소스 기반 6~8시 잔여석 탐색 중...")
             driver.get(target_url)
             time.sleep(4)
 
-            rows = driver.find_elements(By.TAG_NAME, "tr")
+            # 페이지 전체 텍스트 가져오기
+            page_text = driver.page_source
             
-            found_target = False
-            for row in rows:
-                try:
-                    row_text = row.text
-                    if ":" in row_text:
-                        for h in range(START_HOUR, END_HOUR):
-                            target_hour_str = f"{h:02d}:"
-                            if target_hour_str in row_text:
-                                if "예약하기" in row_text or "신청" in row_text:
-                                    print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능한 열차 포착!")
-                                    
-                                    action_btn = row.find_element(By.XPATH, ".//*[contains(text(), '예약하기') or contains(text(), '신청')]")
-                                    action_btn.click()
-                                    time.sleep(3)
-
-                                    success_msg = (
-                                        f"🎉 *KTX {START_HOUR}~{END_HOUR}시 시간대 예매 성공!* 🎉\n\n"
-                                        f"구간: {DPT_STATION} -> {ARR_STATION}\n"
-                                        f"일시: {DATE_STR} ({START_HOUR}:00 ~ {END_HOUR}:00)\n"
-                                        f"코레일 앱에서 예매 내역을 확인해 주세요!"
-                                    )
-                                    send_telegram_message(success_msg)
-                                    print("예매 성공 및 텔레그램 전송 완료!")
-                                    booked_success = True
-                                    found_target = True
-                                    break
-                except Exception as row_err:
-                    continue
-
-                if found_target:
+            # 6시~8시 사이의 시간이 존재하는지 검사
+            found_train = False
+            for h in range(START_HOUR, END_HOUR):
+                time_pattern = f"{h:02d}:"
+                if time_pattern in page_text and ("예약하기" in page_text or "신청" in page_text):
+                    found_train = True
                     break
 
+            if found_train:
+                print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예약 가능한 표 단서 포착! 버튼 클릭 시도...")
+                try:
+                    # 클릭 가능한 예약 버튼들 중 첫 번째 것 실행
+                    buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+                    if buttons:
+                        buttons[0].click()
+                        time.sleep(3)
+
+                        success_msg = (
+                            f"🎉 *KTX {START_HOUR}~{END_HOUR}시 시간대 예매 성공!* 🎉\n\n"
+                            f"구간: {DPT_STATION} -> {ARR_STATION}\n"
+                            f"일시: {DATE_STR} ({START_HOUR}:00 ~ {END_HOUR}:00)\n"
+                            f"코레일 앱에서 예매 내역을 확인해 주세요!"
+                        )
+                        send_telegram_message(success_msg)
+                        print("예매 성공 및 텔레그램 전송 완료!")
+                        booked_success = True
+                        break
+                except Exception as click_err:
+                    print(f"버튼 클릭 중 예외 발생: {click_err}")
+            
             if booked_success:
                 break
             else:
