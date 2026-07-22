@@ -52,7 +52,7 @@ def main():
     RETRY_DELAY = 2               # 재시도 딜레이 (초)
     # ---------------------------------------------------------
 
-    print("크롬 브라우저 초기화 및 안티보안 우회 헤드리스 설정 중...")
+    print("크롬 브라우저 초기화 및 강력한 안티보안 우회 설정 중...")
     chrome_options = Options()
     
     chrome_options.add_argument("--headless")
@@ -63,14 +63,22 @@ def main():
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
         options=chrome_options
     )
 
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    # 봇 탐지 속성 완벽 은폐
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": """
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            window.navigator.chrome = { runtime: {} };
+            Object.defineProperty(navigator, 'languages', { get: () => ['ko-KR', 'ko', 'en-US', 'en'] });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+        """
+    })
 
     try:
         wait = WebDriverWait(driver, 10)
@@ -115,12 +123,9 @@ def main():
         for attempt in range(1, MAX_RETRIES + 1):
             print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 새로고침 및 6~8시 잔여석 파싱 중...")
             driver.get(target_url)
-            
-            # 페이지 내 콘텐츠 렌더링 대기
             time.sleep(3.5)
 
             try:
-                # 페이지 내 모든 링크 및 버튼 요소 탐색
                 elements = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
                 
                 for el in elements:
@@ -128,7 +133,6 @@ def main():
                         row = el.find_element(By.XPATH, "./ancestor::tr")
                         row_text = row.text
                         
-                        # 6시 또는 7시 열차인지 확인 (06:, 07:)
                         if any(f"{h:02d}:" in row_text for h in range(START_HOUR, END_HOUR)):
                             print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능 좌석 포착! 버튼 클릭 시도!")
                             
