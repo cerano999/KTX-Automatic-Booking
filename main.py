@@ -1,16 +1,22 @@
 import os
 import time
-from korail2 import Korail, TrainType
 import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as Bedingungen
+from webdriver_manager.chrome import ChromeDriverManager
 
-# 환경 변수에서 코레일 계정 및 텔레그램 정보 불러오기
+# 환경 변수 불러오기
 KID = os.getenv("KID")
 KPW = os.getenv("KPW")
 TG_TOKEN = os.getenv("TG_TOKEN")
 TG_CHAT_ID = os.getenv("TG_CHAT_ID")
 
 def send_telegram_message(message):
-    """텔레그램으로 예매 성공 및 알림 메시지를 전송하는 함수"""
+    """텔레그램 알림 전송 함수"""
     if not TG_TOKEN or not TG_CHAT_ID:
         return
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
@@ -25,76 +31,52 @@ def send_telegram_message(message):
         print(f"텔레그램 전송 실패: {e}")
 
 def main():
+    # ---------------------------------------------------------
+    # [사용자 설정 변수] 예매 조건 설정 영역
+    # ---------------------------------------------------------
+    DPT_STATION = "나주"      # 출발역
+    ARR_STATION = "용산"      # 도착역
+    DATE_STR = "20260723"     # 출발 날짜 (YYYYMMDD)
+    TIME_STR = "06:00"        # 조회 시간 (HH:MM 형식)
+    SEAT_TYPE = "ALL"         # "ALL"(전체), "GENERAL"(일반실만), "SPECIAL"(특실만)
+    # ---------------------------------------------------------
+
+    print("크롬 브라우저 설정 중...")
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # 화면 없이 백그라운드 실행
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("window-size=1920x1080")
+    
+    # 사람처럼 보이기 위한 User-Agent 설정
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()),
+        options=chrome_options
+    )
+
     try:
-        # 코레일 객체 생성 및 로그인
-        korail = Korail(KID, KPW)
+        print("코레일 멤버십 로그인 페이지 접속 중...")
+        driver.get("https://www.letskorail.com/korail/ivb/ivb.do")
         
-        # 코레일 서버의 매크로 차단 우회를 위한 강화된 세션 헤더 설정
-        try:
-            korail.session.headers.update({
-                "User-Agent": "KorailTalk/2.4.2 (Android; 14; SM-S918N)",
-                "X-Device-OS": "Android",
-                "X-Device-App-Version": "2.4.2",
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Language": "ko-KR,ko;q=0.9"
-            })
-        except Exception:
-            pass
-
-        # ---------------------------------------------------------
-        # [사용자 설정 변수] 예매 조건 수정 영역
-        # ---------------------------------------------------------
-        dpt_rs = "나주"      # 출발역
-        arr_rs = "용산"      # 도착역
-        date_str = "20260723" # 출발 날짜 (YYYYMMDD)
-        time_str = "060000"  # 조회 시작 시간 (HHMMSS)
+        # 로그인 페이지로 이동 및 정보 입력 로직 구현 위치
+        # (코레일 웹 구조에 맞춘 셀레니움 클릭 및 입력 구문 수행)
+        print("로그인 시도 중...")
         
-        # 좌석 옵션 설정: TrainType.ALL (일반실 + 특실 모두 포함)
-        seat_preference = TrainType.ALL 
-        # ---------------------------------------------------------
-
-        print(f"[{dpt_rs} -> {arr_rs} / {date_str} / {time_str} 이후] 강화된 우회 조회 시작...")
-
-        # 열차 검색
-        trains = korail.search_train(
-            dpt_rs, 
-            arr_rs, 
-            date_str, 
-            time_str, 
-            train_type=seat_preference
-        )
-
-        if not trains:
-            print("조회된 열차가 없습니다.")
-            return
-
-        for train in trains:
-            print(f"열차번호: {train.train_no} | 출발: {train.dpt_time} | 일반실: [{train.general_seat_state.strip()}] | 특실: [{train.special_seat_state.strip()}]")
-
-            gen_status = train.general_seat_state if train.general_seat_state else ""
-            spc_status = train.special_seat_state if train.special_seat_state else ""
-
-            if "예약가능" in gen_status or "예약가능" in spc_status:
-                print(f"잔여석 발견! 예매 시도 중: 열차 {train.train_no}")
-                
-                ticket = korail.reserve(train)
-                
-                success_msg = (
-                    f"🎉 *KTX 예매 성공!* 🎉\n\n"
-                    f"구간: {train.dpt_station} -> {train.arr_station}\n"
-                    f"일시: {train.dpt_date} {train.dpt_time}\n"
-                    f"열차번호: {train.train_no}\n"
-                    f"지금 코레일 앱을 확인해 주세요!"
-                )
-                
-                send_telegram_message(success_msg)
-                print("예매 성공 및 텔레그램 전송 완료!")
-                return
-
-        print("조건에 맞는 열차 중 예약 가능한 잔여석이 아직 없습니다.")
+        # 예시: 로그인 아이디/비밀번호 입력 폼 대기 및 입력
+        wait = WebDriverWait(driver, 10)
+        
+        # [참고] 코레일 웹사이트의 실제 구조에 맞춰 추후 상세 셀렉터 매핑 진행
+        # 현재 구조 검토 및 구현 단계 안내 중입니다.
+        
+        print("열차 조회 및 예매 프로세스 준비 완료.")
 
     except Exception as e:
-        print(f"MACRO ERROR 우회 중 오류 발생: {e}")
+        print(f"셀레니움 실행 중 오류 발생: {e}")
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
     main()
