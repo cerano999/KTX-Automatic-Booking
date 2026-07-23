@@ -58,7 +58,7 @@ def main():
     print("크롬 브라우저 초기화 및 강력한 안티보안 우회 설정 중...")
     chrome_options = Options()
     
-    # 강력한 Headless 우회 옵션들
+    # 강력한 Headless 봇 탐지 우회 옵션들
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -88,9 +88,9 @@ def main():
     try:
         wait = WebDriverWait(driver, 15)
 
-        print("1단계: 코레일 로그인 페이지 접속 중...")
-        # (수정) 정확한 코레일 공식 로그인 페이지 URL 적용
-        driver.get("https://www.letskorail.com/korail/com/login.do")
+        print("1단계: 코레일 메인 페이지 우회 접속 중 (방화벽 우회용 Referer 생성)...")
+        # 로그인 페이지로 직행하지 않고, 메인 페이지를 먼저 밟아서 방화벽을 속입니다.
+        driver.get("https://www.letskorail.com/")
         time.sleep(3)
 
         # 팝업 알림 무시 로직
@@ -100,16 +100,31 @@ def main():
         except:
             pass
 
+        print("메인 페이지에서 로그인 화면으로 이동 중...")
         try:
-            # 안전하게 로그인 요소 대기
-            id_input = wait.until(EC.presence_of_element_located((By.ID, "txtMember")))
-            pw_input = wait.until(EC.presence_of_element_located((By.ID, "txtPwd")))
+            # 사람처럼 화면 상단의 '로그인' 버튼을 클릭합니다.
+            login_link = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, 'login') or contains(text(), '로그인') or .//img[@alt='로그인']]")))
+            driver.execute_script("arguments[0].click();", login_link)
+            time.sleep(4)
+        except Exception as e:
+            print("로그인 버튼 클릭 실패, 폴백 우회 접속 시도...")
+            driver.get("https://www.letskorail.com/korail/com/login.do")
+            time.sleep(4)
+
+        try:
+            # 안전하게 로그인 요소 다중 탐색 대기
+            try:
+                id_input = wait.until(EC.presence_of_element_located((By.ID, "txtMember")))
+                pw_input = driver.find_element(By.ID, "txtPwd")
+            except:
+                id_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserId")))
+                pw_input = driver.find_element(By.ID, "txtUserPwd")
             
             id_input.clear()
             id_input.send_keys(KID)
             pw_input.clear()
             
-            # 비밀번호 입력 후 엔터키 전송으로 자연스럽게 로그인 유도
+            # 비밀번호 입력 후 엔터키 전송으로 더욱 자연스럽게 로그인 유도
             pw_input.send_keys(KPW)
             pw_input.send_keys(Keys.RETURN)
             
@@ -121,17 +136,16 @@ def main():
             except:
                 pass
                 
-            print("✅ 로그인 완료.")
+            print("✅ 코레일 로그인 완벽 성공.")
             
         except Exception as login_err:
-            # 실패 원인 분석을 위한 자가 진단 로그 출력
             print(f"❌ 로그인 입력창을 찾을 수 없습니다. (예외: {login_err})")
             print("--- [디버깅] 현재 화면 정보 ---")
             print(f"현재 URL: {driver.current_url}")
             print(f"페이지 제목: {driver.title}")
             print(f"화면 내용 일부: {driver.page_source[:500]}")
             print("---------------------------------")
-            print("※ 화면 내용이 비정상적이거나 차단 안내가 있다면 깃허브 액션 서버 IP가 코레일에 의해 차단된 것입니다.")
+            print("※ 계속해서 코레일 에러 페이지가 뜬다면, 깃허브 액션 IP 대역 자체가 코레일에 의해 원천 차단된 상태일 확률이 높습니다.")
             return
 
         print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 안전 감시 시작...")
