@@ -93,25 +93,27 @@ def main():
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 진입 및 폼 검색 시도 중...")
+            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 진입 및 폼 입력 제어 중...")
             
             # 승차권 예매 메인 화면으로 이동
             driver.get("https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do")
             
             try:
-                # 입력 폼 요소들이 로드될 때까지 대기
-                wait.until(EC.presence_of_element_located((By.ID, "txtDptRsStnNm")))
-                wait.until(EC.presence_of_element_located((By.ID, "txtArrRsStnNm")))
+                # 입력 필드가 로드될 때까지 대기 후 값 직접 입력
+                dpt_input = wait.until(EC.presence_of_element_located((By.ID, "txtDptRsStnNm")))
+                arr_input = wait.until(EC.presence_of_element_located((By.ID, "txtArrRsStnNm")))
+                date_input = wait.until(EC.presence_of_element_located((By.ID, "txtStrtDt")))
 
-                # 자바스크립트를 이용해 검색 조건 입력
-                driver.execute_script(f"""
-                    document.getElementById('txtDptRsStnNm').value = '{DPT_STATION_NAME}';
-                    document.getElementById('txtArrRsStnNm').value = '{ARR_STATION_NAME}';
-                    document.getElementById('txtStrtDt').value = '{DATE_STR}';
-                    document.getElementById('txtStrtTm').value = '060000';
-                """)
+                dpt_input.clear()
+                dpt_input.send_keys(DPT_STATION_NAME)
                 
-                # 검색 함수 실행
+                arr_input.clear()
+                arr_input.send_keys(ARR_STATION_NAME)
+                
+                date_input.clear()
+                date_input.send_keys(DATE_STR)
+
+                # 조회 버튼 클릭 또는 검색 함수 실행
                 driver.execute_script("fn_search();")
                 time.sleep(4) # 서버 응답 대기
 
