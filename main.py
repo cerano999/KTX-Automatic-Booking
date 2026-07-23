@@ -40,7 +40,7 @@ def main():
     DPT_STATION_CODE = "0245"      # 나주역 코드
     ARR_STATION_CODE = "0002"      # 용산역 코드
     
-    DATE_STR = "20260727"         # 출발 날짜 (YYYYMMDD)
+    DATE_STR = "20260727"         # 출발 날짜 (YYYYMMDD) - 2026년 7월 27일
     BASE_TIME_STR = "060000"      # 조회 기준 시간 (06시)
     
     START_HOUR = 6                # 검색 시작 시간 (6시)
@@ -48,7 +48,7 @@ def main():
     
     SEAT_PREFERENCE = "ALL"       # 좌석 옵션 ("ALL", "GENERAL", "SPECIAL")
     
-    MAX_RETRIES = 35              # 반복 조회 횟수
+    MAX_RETRIES = 40              # 반복 조회 횟수
     RETRY_DELAY = 2               # 재시도 딜레이 (초)
     # ---------------------------------------------------------
 
@@ -113,26 +113,26 @@ def main():
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 접속 및 6~8시 잔여석 스캔 중...")
+            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 새로고침 및 6~8시 잔여석 파싱 중...")
             driver.get(target_url)
             
-            # 자바스크립트 및 동적 테이블 로딩을 확실하게 기다리기 위해 대기 시간 상향 (4초)
+            # 페이지가 완전히 렌더링되도록 4초 대기
             time.sleep(4.0)
 
             try:
-                # 페이지 내 모든 예약 버튼 또는 신청 버튼을 탐색
-                elements = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
+                # 예약 및 신청 버튼 요소를 모두 수집
+                buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
                 
-                for el in elements:
+                for btn in buttons:
                     try:
-                        row = el.find_element(By.XPATH, "./ancestor::tr")
+                        row = btn.find_element(By.XPATH, "./ancestor::tr")
                         row_text = row.text
                         
                         # 6시(06:) 또는 7시(07:) 출발 열차인지 확인
                         if any(f"{h:02d}:" in row_text for h in range(START_HOUR, END_HOUR)):
                             print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능 좌석 포착! 즉시 클릭!")
                             
-                            el.click()
+                            btn.click()
                             time.sleep(3)
 
                             success_msg = (
