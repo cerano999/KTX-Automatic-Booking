@@ -89,7 +89,8 @@ def main():
         wait = WebDriverWait(driver, 15)
 
         print("1단계: 코레일 로그인 페이지 접속 중...")
-        driver.get("https://www.letskorail.com/korail/log/logf01000.do")
+        # (수정) 정확한 코레일 공식 로그인 페이지 URL 적용
+        driver.get("https://www.letskorail.com/korail/com/login.do")
         time.sleep(3)
 
         # 팝업 알림 무시 로직
