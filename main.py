@@ -81,15 +81,21 @@ def main():
     })
 
     try:
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 15) # 대기 시간을 15초로 늘려 안정성 확보
 
         print("1단계: 코레일 로그인 페이지 접속 중...")
-        # 정확한 로그인 페이지 URL로 직접 접속
         driver.get("https://www.letskorail.com/korail/log/logf01000.do")
-        time.sleep(2)
+        time.sleep(3)
+
+        # 예상치 못한 팝업창(Alert) 무시
+        try:
+            alert = driver.switch_to.alert
+            alert.accept()
+        except:
+            pass
 
         try:
-            # 올바른 코레일 웹사이트 ID 식별자(txtMember, txtPwd) 적용
+            # 안전하게 요소 대기
             id_input = wait.until(EC.presence_of_element_located((By.ID, "txtMember")))
             pw_input = wait.until(EC.presence_of_element_located((By.ID, "txtPwd")))
             
@@ -98,10 +104,18 @@ def main():
             pw_input.clear()
             pw_input.send_keys(KPW)
 
-            # 자바스크립트를 이용한 안정적인 로그인 버튼 클릭
+            # 로그인 버튼 찾아 클릭
             login_btn = driver.find_element(By.XPATH, "//img[@alt='확인']/parent::a")
             driver.execute_script("arguments[0].click();", login_btn)
-            time.sleep(3)
+            time.sleep(4)
+            
+            # 로그인 후 팝업(비밀번호 변경 안내 등) 닫기
+            try:
+                alert = driver.switch_to.alert
+                alert.accept()
+            except:
+                pass
+                
             print("로그인 완료.")
         except Exception as login_err:
             print(f"로그인 예외 발생: {login_err}")
@@ -128,6 +142,13 @@ def main():
             driver.get(target_url)
             time.sleep(4.0)
 
+            # 검색 페이지 접근 시 팝업 닫기
+            try:
+                alert = driver.switch_to.alert
+                alert.accept()
+            except:
+                pass
+
             try:
                 buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청') or contains(@alt, '예약하기') or contains(@alt, '신청하기')]")
                 
@@ -146,6 +167,13 @@ def main():
                             
                             driver.execute_script("arguments[0].click();", click_target)
                             time.sleep(4) 
+                            
+                            # 예매 후 팝업(명절 안내 등) 닫기
+                            try:
+                                alert = driver.switch_to.alert
+                                alert.accept()
+                            except:
+                                pass
 
                             success_msg = (
                                 f"🎉 *KTX {START_HOUR}~{END_HOUR}시 시간대 예매 성공!* 🎉\n\n"
