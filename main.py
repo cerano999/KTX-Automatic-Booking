@@ -40,7 +40,7 @@ def main():
     DPT_STATION_CODE = "0245"      # 나주역 코드
     ARR_STATION_CODE = "0002"      # 용산역 코드
     
-    DATE_STR = "20260727"         # 출발 날짜 (YYYYMMDD) - 2026년 7월 27일
+    DATE_STR = "20260727"         # 출발 날짜 (YYYYMMDD)
     BASE_TIME_STR = "060000"      # 조회 기준 시간 (06시)
     
     START_HOUR = 6                # 검색 시작 시간 (6시)
@@ -116,11 +116,11 @@ def main():
             print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 새로고침 및 6~8시 잔여석 파싱 중...")
             driver.get(target_url)
             
-            # 페이지가 완전히 렌더링되도록 4초 대기
-            time.sleep(4.0)
+            # 페이지 데이터가 완전히 렌더링되도록 대기 시간 확보
+            time.sleep(4.5)
 
             try:
-                # 예약 및 신청 버튼 요소를 모두 수집
+                # 페이지 내 모든 예약/신청 버튼 수집
                 buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
                 
                 for btn in buttons:
@@ -128,7 +128,7 @@ def main():
                         row = btn.find_element(By.XPATH, "./ancestor::tr")
                         row_text = row.text
                         
-                        # 6시(06:) 또는 7시(07:) 출발 열차인지 확인
+                        # 6시(06:) 또는 7시(07:) 출발 열차인지 정밀 대조
                         if any(f"{h:02d}:" in row_text for h in range(START_HOUR, END_HOUR)):
                             print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능 좌석 포착! 즉시 클릭!")
                             
