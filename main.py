@@ -88,19 +88,22 @@ def main():
         except Exception as login_err:
             print(f"로그인 자동 입력 예외 발생 (세션 유지 중일 수 있음): {login_err}")
 
-        print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 폼 입력형 정밀 감시 시작...")
+        print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 안전 대기형 검색 시작...")
         
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 직접 진입 및 폼 검색 시도 중...")
+            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 진입 및 폼 로딩 대기 중...")
             
             # 승차권 예매 메인 화면으로 이동
             driver.get("https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do")
-            time.sleep(3)
-
+            
             try:
-                # 자바스크립트를 이용해 출발역, 도착역, 날짜, 조회 시간을 입력 폼에 직접 주입
+                # 입력 폼 요소들이 화면에 나타날 때까지 최대 10초 대기하여 null 에러 방지
+                wait.until(EC.presence_of_element_located((By.ID, "txtDptRsStnNm")))
+                wait.until(EC.presence_of_element_located((By.ID, "txtArrRsStnNm")))
+                
+                # 자바스크립트를 이용해 출발역, 도착역, 날짜, 조회 시간 입력
                 driver.execute_script(f"""
                     document.getElementById('txtDptRsStnNm').value = '{DPT_STATION_NAME}';
                     document.getElementById('txtArrRsStnNm').value = '{ARR_STATION_NAME}';
@@ -108,7 +111,7 @@ def main():
                     document.getElementById('txtStrtTm').value = '060000';
                 """)
                 
-                # 조회(검색) 버튼 실행 (자바스크립트 함수 fn_search 호출)
+                # 조회(검색) 함수 실행
                 driver.execute_script("fn_search();")
                 time.sleep(4) # 서버 응답 대기
 
