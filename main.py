@@ -52,7 +52,7 @@ def main():
     RETRY_DELAY = 2               # 재시도 딜레이 (초)[span_10](start_span)[span_10](end_span)
     # ---------------------------------------------------------
 
-    print("크롬 브라우저 초기화 및 안티보안 우회 헤드리스 설정 중...")[span_11](start_span)[span_11](end_span)
+    print("크롬 브라우저 초기화 및 안티보안 우회 헤드리스 설정 중...")
     chrome_options = Options()
     
     chrome_options.add_argument("--headless")
@@ -75,7 +75,7 @@ def main():
     try:
         wait = WebDriverWait(driver, 10)
 
-        print("1단계: 코레일 멤버십 로그인 페이지 접속 중...")[span_12](start_span)[span_12](end_span)
+        print("1단계: 코레일 멤버십 로그인 페이지 접속 중...")[span_11](start_span)[span_11](end_span)
         driver.get("https://www.letskorail.com/korail/ivb/ivb.do")
         time.sleep(2)
 
@@ -91,11 +91,11 @@ def main():
             login_btn = driver.find_element(By.XPATH, "//a[contains(@href, 'fn_login') or contains(text(), '로그인')]")
             login_btn.click()
             time.sleep(3)
-            print("로그인 완료.")[span_13](start_span)[span_13](end_span)
+            print("로그인 완료.")[span_12](start_span)[span_12](end_span)
         except Exception as login_err:
-            print(f"로그인 자동 입력 예외 발생 (세션 유지 중일 수 있음): {login_err}")[span_14](start_span)[span_14](end_span)
+            print(f"로그인 자동 입력 예외 발생 (세션 유지 중일 수 있음): {login_err}")[span_13](start_span)[span_13](end_span)
 
-        print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 정밀 감시 시작...")[span_15](start_span)[span_15](end_span)
+        print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 정밀 감시 시작...")[span_14](start_span)[span_14](end_span)
         
         seat_code = "000"
         if SEAT_PREFERENCE == "GENERAL":
@@ -113,7 +113,7 @@ def main():
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 접속 및 6~8시 잔여석 파싱 중...")[span_16](start_span)[span_16](end_span)
+            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 접속 및 6~8시 잔여석 파싱 중...")[span_15](start_span)[span_15](end_span)
             driver.get(target_url)
             time.sleep(4.0)
 
@@ -126,7 +126,7 @@ def main():
                         row_text = row.text
                         
                         if any(f"{h:02d}:" in row_text for h in range(START_HOUR, END_HOUR)):
-                            print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능 좌석 포착! 즉시 클릭!")[span_17](start_span)[span_17](end_span)
+                            print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능 좌석 포착! 즉시 클릭!")[span_16](start_span)[span_16](end_span)
                             
                             btn.click()
                             time.sleep(3)
@@ -138,25 +138,25 @@ def main():
                                 f"코레일 앱에서 예매 내역을 확인해 주세요!"
                             )
                             send_telegram_message(success_msg)
-                            print("예매 성공 및 텔레그램 전송 완료!")[span_18](start_span)[span_18](end_span)
+                            print("예매 성공 및 텔레그램 전송 완료!")[span_17](start_span)[span_17](end_span)
                             booked_success = True
                             break
                     except Exception:
                         continue
             except Exception as e:
-                print(f"파싱 중 예외 발생: {e}")[span_19](start_span)[span_19](end_span)
+                print(f"파싱 중 예외 발생: {e}")[span_18](start_span)[span_18](end_span)
 
             if booked_success:
                 break
             else:
-                print(f"조건 범위 내 잔여석 없음. {RETRY_DELAY}초 후 재시도합니다.")[span_20](start_span)[span_20](end_span)
+                print(f"조건 범위 내 잔여석 없음. {RETRY_DELAY}초 후 재시도합니다.")[span_19](start_span)[span_19](end_span)
                 time.sleep(RETRY_DELAY)
 
         if not booked_success:
-            print("설정된 최대 재시도 횟수 동안 범위 내 예약 가능한 잔여석이 발견되지 않았습니다.")[span_21](start_span)[span_21](end_span)
+            print("설정된 최대 재시도 횟수 동안 범위 내 예약 가능한 잔여석이 발견되지 않았습니다.")[span_20](start_span)[span_20](end_span)
 
     except Exception as e:
-        print(f"실행 중 오류 발생: {e}")[span_22](start_span)[span_22](end_span)
+        print(f"실행 중 오류 발생: {e}")[span_21](start_span)[span_21](end_span)
     finally:
         driver.quit()
 
