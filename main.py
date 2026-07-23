@@ -5,11 +5,14 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
-# 환경 변수에서 계정 정보 불러오기
+# ---------------------------------------------------------
+# 환경 변수 설정
+# ---------------------------------------------------------
 KID = os.getenv("KID")
 KPW = os.getenv("KPW")
 TG_TOKEN = os.getenv("TG_TOKEN")
@@ -40,7 +43,7 @@ def main():
     DPT_STATION_CODE = "0245"      # 나주역 코드
     ARR_STATION_CODE = "0002"      # 용산역 코드
     
-    DATE_STR = "20260727"         # 출발 날짜 (2026년 7월 27일)
+    DATE_STR = "20260727"         # 출발 날짜 (YYYYMMDD)
     BASE_TIME_STR = "060000"      # 조회 기준 시간 (06시)
     
     START_HOUR = 6                # 검색 시작 시간 (6시)
@@ -55,6 +58,7 @@ def main():
     print("크롬 브라우저 초기화 및 강력한 안티보안 우회 설정 중...")
     chrome_options = Options()
     
+    # 강력한 Headless 우회 옵션들
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -64,7 +68,7 @@ def main():
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
     
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     chrome_options.add_argument(f"user-agent={user_agent}")
 
     driver = webdriver.Chrome(
@@ -72,6 +76,7 @@ def main():
         options=chrome_options
     )
 
+    # Webdriver 탐지 회피 스크립트 주입
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": """
             Object.defineProperty(navigator, 'webdriver', {
@@ -81,13 +86,13 @@ def main():
     })
 
     try:
-        wait = WebDriverWait(driver, 15) # 대기 시간을 15초로 늘려 안정성 확보
+        wait = WebDriverWait(driver, 15)
 
         print("1단계: 코레일 로그인 페이지 접속 중...")
         driver.get("https://www.letskorail.com/korail/log/logf01000.do")
         time.sleep(3)
 
-        # 예상치 못한 팝업창(Alert) 무시
+        # 팝업 알림 무시 로직
         try:
             alert = driver.switch_to.alert
             alert.accept()
@@ -95,30 +100,38 @@ def main():
             pass
 
         try:
-            # 안전하게 요소 대기
+            # 안전하게 로그인 요소 대기
             id_input = wait.until(EC.presence_of_element_located((By.ID, "txtMember")))
             pw_input = wait.until(EC.presence_of_element_located((By.ID, "txtPwd")))
             
             id_input.clear()
             id_input.send_keys(KID)
             pw_input.clear()
-            pw_input.send_keys(KPW)
-
-            # 로그인 버튼 찾아 클릭
-            login_btn = driver.find_element(By.XPATH, "//img[@alt='확인']/parent::a")
-            driver.execute_script("arguments[0].click();", login_btn)
-            time.sleep(4)
             
-            # 로그인 후 팝업(비밀번호 변경 안내 등) 닫기
+            # 비밀번호 입력 후 엔터키 전송으로 자연스럽게 로그인 유도
+            pw_input.send_keys(KPW)
+            pw_input.send_keys(Keys.RETURN)
+            
+            time.sleep(3)
+            
             try:
                 alert = driver.switch_to.alert
                 alert.accept()
             except:
                 pass
                 
-            print("로그인 완료.")
+            print("✅ 로그인 완료.")
+            
         except Exception as login_err:
-            print(f"로그인 예외 발생: {login_err}")
+            # 실패 원인 분석을 위한 자가 진단 로그 출력
+            print(f"❌ 로그인 입력창을 찾을 수 없습니다. (예외: {login_err})")
+            print("--- [디버깅] 현재 화면 정보 ---")
+            print(f"현재 URL: {driver.current_url}")
+            print(f"페이지 제목: {driver.title}")
+            print(f"화면 내용 일부: {driver.page_source[:500]}")
+            print("---------------------------------")
+            print("※ 화면 내용이 비정상적이거나 차단 안내가 있다면 깃허브 액션 서버 IP가 코레일에 의해 차단된 것입니다.")
+            return
 
         print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 안전 감시 시작...")
         
@@ -142,7 +155,6 @@ def main():
             driver.get(target_url)
             time.sleep(4.0)
 
-            # 검색 페이지 접근 시 팝업 닫기
             try:
                 alert = driver.switch_to.alert
                 alert.accept()
@@ -168,7 +180,6 @@ def main():
                             driver.execute_script("arguments[0].click();", click_target)
                             time.sleep(4) 
                             
-                            # 예매 후 팝업(명절 안내 등) 닫기
                             try:
                                 alert = driver.switch_to.alert
                                 alert.accept()
@@ -179,7 +190,7 @@ def main():
                                 f"🎉 *KTX {START_HOUR}~{END_HOUR}시 시간대 예매 성공!* 🎉\n\n"
                                 f"구간: {DPT_STATION_NAME} -> {ARR_STATION_NAME}\n"
                                 f"일시: {DATE_STR} ({START_HOUR}:00 ~ {END_HOUR}:00)\n"
-                                f"코레일 앱에서 장바구니/예약내역을 확인해 주세요!"
+                                f"코레일톡 앱에서 장바구니/예약내역을 신속하게 확인해 주세요!"
                             )
                             send_telegram_message(success_msg)
                             print("✅ 예매 완료 및 텔레그램 알림 전송 성공!")
