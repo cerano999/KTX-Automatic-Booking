@@ -72,27 +72,35 @@ def main():
         options=chrome_options
     )
 
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": """
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            })
+        """
+    })
 
     try:
         wait = WebDriverWait(driver, 10)
 
         print("1단계: 코레일 로그인 페이지 접속 중...")
-        driver.get("https://www.letskorail.com/korail/ivb/ivb.do")
+        # 정확한 로그인 페이지 URL로 직접 접속
+        driver.get("https://www.letskorail.com/korail/log/logf01000.do")
         time.sleep(2)
 
         try:
-            # 안전하고 확실하게 동작했던 NAME 식별자로 복구
-            id_input = wait.until(EC.presence_of_element_located((By.NAME, "txtUserId")))
-            pw_input = wait.until(EC.presence_of_element_located((By.NAME, "txtUserPwd")))
+            # 올바른 코레일 웹사이트 ID 식별자(txtMember, txtPwd) 적용
+            id_input = wait.until(EC.presence_of_element_located((By.ID, "txtMember")))
+            pw_input = wait.until(EC.presence_of_element_located((By.ID, "txtPwd")))
             
             id_input.clear()
             id_input.send_keys(KID)
             pw_input.clear()
             pw_input.send_keys(KPW)
 
-            login_btn = driver.find_element(By.XPATH, "//a[contains(@href, 'fn_login') or contains(text(), '로그인')]")
-            login_btn.click()
+            # 자바스크립트를 이용한 안정적인 로그인 버튼 클릭
+            login_btn = driver.find_element(By.XPATH, "//img[@alt='확인']/parent::a")
+            driver.execute_script("arguments[0].click();", login_btn)
             time.sleep(3)
             print("로그인 완료.")
         except Exception as login_err:
@@ -121,16 +129,14 @@ def main():
             time.sleep(4.0)
 
             try:
-                # 텍스트와 이미지 형태의 예약 버튼 모두 스캔
-                buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청') or @alt='예약하기' or @alt='신청하기']")
+                buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청') or contains(@alt, '예약하기') or contains(@alt, '신청하기')]")
                 
                 for btn in buttons:
                     try:
-                        # 버튼이 이미지(img) 태그일 경우 부모 앵커(a) 태그를 클릭 대상으로 지정
-                        tag_name = btn.tag_name.lower()
-                        click_target = btn
-                        if tag_name == 'img':
+                        if btn.tag_name.lower() == 'img':
                             click_target = btn.find_element(By.XPATH, "./parent::a")
+                        else:
+                            click_target = btn
 
                         row = click_target.find_element(By.XPATH, "./ancestor::tr")
                         row_text = row.text
@@ -138,7 +144,7 @@ def main():
                         if any(f"{h:02d}:" in row_text for h in range(START_HOUR, END_HOUR)):
                             print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 열차 예매 버튼 포착! 클릭 진행 중...")
                             
-                            click_target.click()
+                            driver.execute_script("arguments[0].click();", click_target)
                             time.sleep(4) 
 
                             success_msg = (
