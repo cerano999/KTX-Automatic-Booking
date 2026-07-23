@@ -37,16 +37,9 @@ def main():
     DPT_STATION_NAME = "나주"      # 출발역 이름
     ARR_STATION_NAME = "용산"      # 도착역 이름
     
-    DPT_STATION_CODE = "0245"      # 나주역 코드
-    ARR_STATION_CODE = "0002"      # 용산역 코드
-    
     DATE_STR = "20260727"         # 출발 날짜 (2026년 7월 27일)
-    BASE_TIME_STR = "060000"      # 조회 기준 시간 (06시)
-    
     START_HOUR = 6                # 검색 시작 시간 (6시)
     END_HOUR = 8                  # 검색 종료 시간 (8시)
-    
-    SEAT_PREFERENCE = "ALL"       # 좌석 옵션 ("ALL", "GENERAL", "SPECIAL")
     
     MAX_RETRIES = 35              # 반복 조회 횟수
     RETRY_DELAY = 2               # 재시도 딜레이 (초)
@@ -97,27 +90,32 @@ def main():
 
         print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 정밀 감시 시작...")
         
-        seat_code = "000"
-        if SEAT_PREFERENCE == "GENERAL":
-            seat_code = "011"
-        elif SEAT_PREFERENCE == "SPECIAL":
-            seat_code = "012"
-
-        target_url = (
-            f"https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do?"
-            f"txtGoStart={DPT_STATION_CODE}&txtGoEnd={ARR_STATION_CODE}"
-            f"&txtDptRsStnCd={DPT_STATION_CODE}&txtArrRsStnCd={ARR_STATION_CODE}"
-            f"&txtSeatAttCd={seat_code}&txtTraintype=00&txtStrtDt={DATE_STR}&txtStrtTm={BASE_TIME_STR}"
-        )
-
         booked_success = False
 
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 새로고침 및 6~8시 잔여석 파싱 중...")
-            driver.get(target_url)
-            time.sleep(4.0)
-
+            print(f"[{attempt}/{MAX_RETRIES}] 승차권 조회 페이지 진입 및 폼 검색 시도 중...")
+            
+            # 승차권 예매 메인 화면으로 이동
+            driver.get("https://www.letskorail.com/ebizprd/EbizPrdTicketPr111_i1.do")
+            
             try:
+                # 입력 폼 요소들이 로드될 때까지 대기
+                wait.until(EC.presence_of_element_located((By.ID, "txtDptRsStnNm")))
+                wait.until(EC.presence_of_element_located((By.ID, "txtArrRsStnNm")))
+
+                # 자바스크립트를 이용해 검색 조건 입력
+                driver.execute_script(f"""
+                    document.getElementById('txtDptRsStnNm').value = '{DPT_STATION_NAME}';
+                    document.getElementById('txtArrRsStnNm').value = '{ARR_STATION_NAME}';
+                    document.getElementById('txtStrtDt').value = '{DATE_STR}';
+                    document.getElementById('txtStrtTm').value = '060000';
+                """)
+                
+                # 검색 함수 실행
+                driver.execute_script("fn_search();")
+                time.sleep(4) # 서버 응답 대기
+
+                # 결과 페이지 내 예약 버튼 탐색
                 buttons = driver.find_elements(By.XPATH, "//*[contains(text(), '예약하기') or contains(text(), '신청')]")
                 
                 for btn in buttons:
@@ -125,6 +123,7 @@ def main():
                         row = btn.find_element(By.XPATH, "./ancestor::tr")
                         row_text = row.text
                         
+                        # 6시(06:) 또는 7시(07:) 출발 열차인지 확인
                         if any(f"{h:02d}:" in row_text for h in range(START_HOUR, END_HOUR)):
                             print(f"🎯 {START_HOUR}시~{END_HOUR}시 시간대 내 예매 가능 좌석 포착! 즉시 클릭!")
                             
@@ -144,7 +143,7 @@ def main():
                     except Exception:
                         continue
             except Exception as e:
-                print(f"파싱 중 예외 발생: {e}")
+                print(f"검색 조작 중 예외 발생: {e}")
 
             if booked_success:
                 break
