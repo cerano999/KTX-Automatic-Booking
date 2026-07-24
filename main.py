@@ -11,12 +11,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 # ---------------------------------------------------------
-# 환경 변수 설정
+# 계정 정보 설정 (로컬 실행 시 여기에 직접 입력하세요)
 # ---------------------------------------------------------
-KID = os.getenv("KID")
-KPW = os.getenv("KPW")
-TG_TOKEN = os.getenv("TG_TOKEN")
-TG_CHAT_ID = os.getenv("TG_CHAT_ID")
+KID = os.getenv("KID", "여기에_코레일_아이디_입력")
+KPW = os.getenv("KPW", "여기에_코레일_비밀번호_입력")
+TG_TOKEN = os.getenv("TG_TOKEN", "여기에_텔레그램_토큰_입력")
+TG_CHAT_ID = os.getenv("TG_CHAT_ID", "여기에_텔레그램_챗아이디_입력")
 
 def send_telegram_message(message):
     """텔레그램 알림 전송 함수"""
@@ -55,14 +55,12 @@ def main():
     RETRY_DELAY = 2               # 재시도 딜레이 (초)
     # ---------------------------------------------------------
 
-    print("크롬 브라우저 초기화 및 강력한 안티보안 우회 설정 중...")
+    print("크롬 브라우저 초기화 중 (로컬 PC 환경)...")
     chrome_options = Options()
     
-    # 강력한 Headless 봇 탐지 우회 옵션들
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
+    # 개인 PC에서 화면을 직접 보기 위해 headless 옵션 비활성화
+    # chrome_options.add_argument("--headless=new")
+    
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -76,7 +74,6 @@ def main():
         options=chrome_options
     )
 
-    # Webdriver 탐지 회피 스크립트 주입
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": """
             Object.defineProperty(navigator, 'webdriver', {
@@ -88,47 +85,27 @@ def main():
     try:
         wait = WebDriverWait(driver, 15)
 
-        print("1단계: 코레일 메인 페이지 우회 접속 중 (방화벽 우회용 Referer 생성)...")
-        # 로그인 페이지로 직행하지 않고, 메인 페이지를 먼저 밟아서 방화벽을 속입니다.
-        driver.get("https://www.letskorail.com/")
+        print("1단계: 코레일 로그인 페이지 접속 중...")
+        driver.get("https://www.letskorail.com/korail/com/login.do")
         time.sleep(3)
 
-        # 팝업 알림 무시 로직
         try:
             alert = driver.switch_to.alert
             alert.accept()
         except:
             pass
 
-        print("메인 페이지에서 로그인 화면으로 이동 중...")
         try:
-            # 사람처럼 화면 상단의 '로그인' 버튼을 클릭합니다.
-            login_link = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, 'login') or contains(text(), '로그인') or .//img[@alt='로그인']]")))
-            driver.execute_script("arguments[0].click();", login_link)
-            time.sleep(4)
-        except Exception as e:
-            print("로그인 버튼 클릭 실패, 폴백 우회 접속 시도...")
-            driver.get("https://www.letskorail.com/korail/com/login.do")
-            time.sleep(4)
-
-        try:
-            # 안전하게 로그인 요소 다중 탐색 대기
-            try:
-                id_input = wait.until(EC.presence_of_element_located((By.ID, "txtMember")))
-                pw_input = driver.find_element(By.ID, "txtPwd")
-            except:
-                id_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserId")))
-                pw_input = driver.find_element(By.ID, "txtUserPwd")
+            id_input = wait.until(EC.presence_of_element_located((By.ID, "txtMember")))
+            pw_input = wait.until(EC.presence_of_element_located((By.ID, "txtPwd")))
             
             id_input.clear()
             id_input.send_keys(KID)
             pw_input.clear()
-            
-            # 비밀번호 입력 후 엔터키 전송으로 더욱 자연스럽게 로그인 유도
             pw_input.send_keys(KPW)
             pw_input.send_keys(Keys.RETURN)
             
-            time.sleep(3)
+            time.sleep(4)
             
             try:
                 alert = driver.switch_to.alert
@@ -140,12 +117,6 @@ def main():
             
         except Exception as login_err:
             print(f"❌ 로그인 입력창을 찾을 수 없습니다. (예외: {login_err})")
-            print("--- [디버깅] 현재 화면 정보 ---")
-            print(f"현재 URL: {driver.current_url}")
-            print(f"페이지 제목: {driver.title}")
-            print(f"화면 내용 일부: {driver.page_source[:500]}")
-            print("---------------------------------")
-            print("※ 계속해서 코레일 에러 페이지가 뜬다면, 깃허브 액션 IP 대역 자체가 코레일에 의해 원천 차단된 상태일 확률이 높습니다.")
             return
 
         print(f"2단계: {DPT_STATION_NAME} -> {ARR_STATION_NAME} ({DATE_STR} {START_HOUR}~{END_HOUR}시) 안전 감시 시작...")
@@ -228,6 +199,9 @@ def main():
     except Exception as e:
         print(f"실행 중 치명적 오류 발생: {e}")
     finally:
+        # 예매 성공 시 결과를 직접 확인할 수 있도록 창을 10분간 열어둡니다.
+        if booked_success:
+            time.sleep(600)
         driver.quit()
 
 if __name__ == "__main__":
